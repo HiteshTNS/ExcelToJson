@@ -3,6 +3,7 @@ package com.sg.srvc.vendormngt.util;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sg.srvc.vendormngt.dto.ExcelMetadataResponseDTO;
 import com.sg.srvc.vendormngt.dto.ExcelRecordRequestDTO;
+import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
 import com.sg.srvc.vendormngt.dto.ExcelResponseDTO;
 import com.sg.srvc.vendormngt.exception.CustomException;
 import org.apache.poi.ss.usermodel.*;
@@ -38,12 +39,12 @@ public class ExcelUtil {
             int invoiceIndex = findHeaderIndexContaining(headers, "Invoice");
             int claimIndex = findHeaderIndexContaining(headers, "Claim");
 
-            List<ExcelRecordRequestDTO.InvoiceRecord> records = new ArrayList<>();
+            List<InvoiceRecordDTO> records = new ArrayList<>();
             int total = 0;
 
             for (int i = 8; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
-                if (row == null || isTotalRow(row) || isEmptyRow(row)) continue;
+                if (row == null || isTotalRow(row) || isEmptyRow(row)) continue; // Skip if row is null, contains total, or is empty
                 total++;
 
                 Map<String, Object> requestMap = new LinkedHashMap<>();
@@ -52,7 +53,7 @@ public class ExcelUtil {
                     requestMap.put(mapHeader(headers.get(j)), getCellValue(cell));
                 }
 
-                ExcelRecordRequestDTO.InvoiceRecord record = new ExcelRecordRequestDTO.InvoiceRecord();
+                InvoiceRecordDTO record = new InvoiceRecordDTO();
                 record.setRequest(requestMap);
 
                 // Extract invoice and claim number
@@ -112,8 +113,8 @@ public class ExcelUtil {
     }
 
     private static boolean isTotalRow(Row row) {
-        for (Cell cell : row) {
-            if (getCellValue(cell).toLowerCase().contains("total")) return true;
+        for (int i = 0; i < row.getLastCellNum(); i++) {
+            if (getCellValue(row.getCell(i)).toLowerCase().contains("total")) return true;
         }
         return false;
     }
@@ -168,7 +169,6 @@ public class ExcelUtil {
 
         return raw.replaceAll("\\s+", "_");
     }
-
 
     public static String saveJsonToFile(Object jsonObj, String outputDir, String filePrefix) throws IOException {
         ObjectMapper mapper = new ObjectMapper();
