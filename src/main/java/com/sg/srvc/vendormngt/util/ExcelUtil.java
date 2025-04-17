@@ -1,122 +1,166 @@
 package com.sg.srvc.vendormngt.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sg.srvc.vendormngt.dto.ExcelMetadataResponseDTO;
+import com.sg.srvc.vendormngt.dto.ExcelRecordRequestDTO;
 import com.sg.srvc.vendormngt.dto.ExcelResponseDTO;
-import com.sg.srvc.vendormngt.dto.RecordDetailsDTO;
 import com.sg.srvc.vendormngt.exception.CustomException;
-import jakarta.enterprise.context.ApplicationScoped;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
-import java.io.*;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.math.BigDecimal;
-import java.nio.file.*;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
-@ApplicationScoped
 public class ExcelUtil {
 
-    public ExcelResponseDTO readAndConvert(String filePath) {
-        List<RecordDetailsDTO> records = new ArrayList<>();
-        ExcelResponseDTO responseDTO = new ExcelResponseDTO();
-        ExcelResponseDTO.FileDetails fileDetails = new ExcelResponseDTO.FileDetails();
+    public static ExcelResponseDTO readAndConvert(String filePath) {
+        try {
+            File file = new File(filePath);
+            if (!file.exists()) throw new CustomException("File not found at path: " + filePath);
 
-        File inputFile = new File(filePath);
-        if (!inputFile.exists()) {
-            throw new CustomException("File not found at path: " + filePath);
-        }
-
-        try (FileInputStream fis = new FileInputStream(inputFile);
-             Workbook workbook = new XSSFWorkbook(fis)) {
-
+            FileInputStream fis = new FileInputStream(file);
+            Workbook workbook = new XSSFWorkbook(fis);
             Sheet sheet = workbook.getSheetAt(0);
-            // Use getLastRowNum to get the last row index (including blank rows)
-            int totalRows = sheet.getLastRowNum() + 1; // +1 to account for 0-based index
-            System.out.println("Total rows in sheet: " + totalRows); // Debug the row count
 
-
-            // Loop through the rows, start from index 8 (row 9), and exclude the last row
-            for (int i = 8; i < totalRows; i++) { //Skipping the last row total
+            List<ExcelRecordRequestDTO.InvoiceRecord> records = new ArrayList<>();
+            int total = 0;
+            for (int i = 8; i <= sheet.getLastRowNum(); i++) { // Row 9 = index 8
                 Row row = sheet.getRow(i);
+                if (row == null || isTotalRow(row) || isEmptyRow(row)) continue;
+                total++;
+                ExcelRecordRequestDTO.InvoiceRecord record = new ExcelRecordRequestDTO.InvoiceRecord();
+                ExcelRecordRequestDTO.Request request = new ExcelRecordRequestDTO.Request();
 
-                if (row != null) {
-                    String totalFlag = getCellValue(row.getCell(6)); // Assuming column G contains the "total" value
-                    if (totalFlag != null && totalFlag.toLowerCase().contains("total")) {
-                        break; // Stop processing if this is the total row
-                    }
-                    RecordDetailsDTO record = new RecordDetailsDTO();
-                    record.setCompanyName(getCellValue(row.getCell(0)));
-                    record.setInvoice(getCellValue(row.getCell(1)));
-                    record.setContract(getCellValue(row.getCell(2)));
-                    record.setClaim(getCellValue(row.getCell(3)));
-                    record.setInsured(getCellValue(row.getCell(4)));
-                    record.setDateOfCompletion(getCellValue(row.getCell(5)));
-                    record.setVin(getCellValue(row.getCell(6)));
+                request.companyName = getCellValue(row.getCell(0));
+                request.invoiceNumber = getCellValue(row.getCell(1));
+                request.contractNumber = getCellValue(row.getCell(2));
+                request.claimNumber = getCellValue(row.getCell(3));
+                request.insured = getCellValue(row.getCell(4));
+                request.dateofcompletion = parseDate(row.getCell(5));
+                request.vin = getCellValue(row.getCell(6));
+                request.invoiceamount = parseBigDecimal(row.getCell(7));
 
-                    Cell cell = row.getCell(7);
-                    BigDecimal amount;
-
-                    if (cell != null && cell.getCellType() == CellType.NUMERIC) {
-                        amount = BigDecimal.valueOf(cell.getNumericCellValue());
-                    } else {
-                        String amountStr = getCellValue(cell); // fallback for string type
-                        amount = new BigDecimal(amountStr);
-                    }
-                    record.setInvoiceAmount(amount);
-
-
-                    records.add(record);
-                }
+                record.request = request;
+                record.invoiceNumber = request.invoiceNumber;
+                record.claimNumber = request.claimNumber;
+                record.status = "PENDING";
+                records.add(record);
             }
+            workbook.close();
 
-            fileDetails.setFileName(inputFile.getName());
-            fileDetails.setFileExtension(getExtension(inputFile));
-            fileDetails.setTotalRecords(records.size());
+            ExcelMetadataResponseDTO meta = new ExcelMetadataResponseDTO();
+            meta.correlationId = UUID.randomUUID().toString();
+            meta.vendorCode = "xyz";
+            meta.name = file.getName();
+            meta.fileExtension = file.getName().substring(file.getName().lastIndexOf('.') + 1);
+            meta.totalRecCount = total;
+            meta.successRecCount = total;
+            meta.pendingRecCount = 0;
+            meta.errorRecCount = 0;
+            meta.status = "pending";
+            meta.statusDescription = "pending";
+            meta.createdBy = "xyz";
+            meta.url = "http://dummy-url.com/file/" + meta.correlationId;
 
-            responseDTO.setFileDetails(fileDetails);
-            responseDTO.setRecordDetails(records);
+            ExcelRecordRequestDTO recordDTO = new ExcelRecordRequestDTO();
+            recordDTO.invoiceFileMasterId = new Random().nextLong(100000, 999999);
+            recordDTO.invoiceFileRecords = records;
 
-            saveAsJsonFile(responseDTO);
-            return responseDTO;
+            ExcelResponseDTO response = new ExcelResponseDTO();
+            response.setMetadata(meta);
+            response.setRecordDetails(recordDTO);
+
+            // Save JSON to disk
+            String outputPath = "C:\\Users\\hitesh.paliwal\\Desktop\\SG Project Files\\Excel File\\Output\\Allow Wheel"; // Change if needed
+            String savedFile = saveJsonToFile(response, outputPath, "invoice_data");
+            System.out.println("✅ JSON saved at: " + savedFile);
+
+            return response;
 
         } catch (Exception e) {
-            throw new CustomException("Failed to process Excel file: " + e.getMessage());
+            throw new CustomException("Error parsing Excel file: " + e.getMessage());
         }
     }
 
-    private String getExtension(File file) {
-        String name = file.getName();
-        return name.contains(".") ? name.substring(name.lastIndexOf('.') + 1) : "";
-    }
 
-    private String getCellValue(Cell cell) {
-        if (cell == null) return "";
-        return switch (cell.getCellType()) {
-            case STRING -> cell.getStringCellValue();
-            case NUMERIC -> DateUtil.isCellDateFormatted(cell)
-                    ? new SimpleDateFormat("MM/dd/yyyy").format(cell.getDateCellValue())
-                    : String.valueOf((long) cell.getNumericCellValue());
-            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
-            default -> "";
-        };
-    }
 
-    private void saveAsJsonFile(ExcelResponseDTO response) {
-        String directoryPath = "C:\\Users\\hitesh.paliwal\\Desktop\\SG Project Files\\Excel File\\Output\\Allow Wheel";
-        Path outputPath = Paths.get(directoryPath, "output_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".json");
-
-        try {
-            Files.createDirectories(outputPath.getParent());
-
-            try (BufferedWriter writer = Files.newBufferedWriter(outputPath)) {
-                writer.write(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(response));
+    private static boolean isEmptyRow(Row row) {
+        for (int i = 0; i < 8; i++) {
+            if (row.getCell(i) != null && !getCellValue(row.getCell(i)).trim().isEmpty()) {
+                return false;
             }
-        } catch (IOException e) {
-            // Handle the exception gracefully
-            throw new CustomException("Failed to save JSON file: " + e.getMessage());
+        }
+        return true;
+    }
+
+    private static boolean isTotalRow(Row row) {
+        for (int i = 0; i < row.getLastCellNum(); i++) {
+            if (getCellValue(row.getCell(i)).toLowerCase().contains("total")) return true;
+        }
+        return false;
+    }
+
+    private static String getCellValue(Cell cell) {
+        if (cell == null) return "";
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue();
+            case NUMERIC:
+                if (DateUtil.isCellDateFormatted(cell)) {
+                    return new SimpleDateFormat("yyyy-MM-dd").format(cell.getDateCellValue());
+                } else {
+                    // Preserve decimals exactly for amount and large numbers as plain string
+                    return BigDecimal.valueOf(cell.getNumericCellValue()).toPlainString();
+                }
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            default:
+                return "";
         }
     }
 
+
+
+    private static String parseDate(Cell cell) {
+        try {
+            if (cell == null) return null;
+            if (cell.getCellType() == CellType.NUMERIC && DateUtil.isCellDateFormatted(cell)) {
+                return new SimpleDateFormat("MM/dd/yyyy").format(cell.getDateCellValue());
+            }
+            if (cell.getCellType() == CellType.STRING) {
+                String raw = cell.getStringCellValue().trim();
+                Date parsed = new SimpleDateFormat("MM/dd/yyyy").parse(raw);
+                return new SimpleDateFormat("MM/dd/yyyy").format(parsed);
+            }
+        } catch (Exception e) {
+            e.printStackTrace(); // logging if needed
+        }
+        return null;
+    }
+
+
+
+    private static BigDecimal parseBigDecimal(Cell cell) {
+        try {
+            return new BigDecimal(getCellValue(cell));
+        } catch (Exception e) {
+            return BigDecimal.ZERO;
+        }
+    }
+
+
+    public static String saveJsonToFile(Object jsonObj, String outputDir, String filePrefix) throws IOException {
+        ObjectMapper mapper = new ObjectMapper();
+        String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+        String fileName = filePrefix + "_" + timestamp + ".json";
+        File file = new File(outputDir, fileName);
+
+        mapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonObj);
+        return file.getAbsolutePath();
+    }
 
 }
