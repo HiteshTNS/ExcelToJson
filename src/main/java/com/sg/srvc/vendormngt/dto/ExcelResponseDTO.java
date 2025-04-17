@@ -11,7 +11,7 @@ import java.util.List;
 @ToString
 public class ExcelResponseDTO {
     public ExcelMetadataResponseDTO metadata;
-    public ExcelRecordRequestDTO recordDetails;
+    private List<ExcelRecordRequestDTO> recordDetails; // Batched
 
     // Getters and Setters
 //    public ExcelMetadataResponseDTO getMetadata() {

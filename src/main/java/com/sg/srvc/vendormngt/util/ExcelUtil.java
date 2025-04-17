@@ -18,6 +18,8 @@ import java.util.*;
 
 public class ExcelUtil {
 
+    private static final int BATCH_SIZE = 100;
+
     public static ExcelResponseDTO readAndConvert(String filePath) {
         try {
             File file = new File(filePath);
@@ -27,7 +29,6 @@ public class ExcelUtil {
             Workbook workbook = new XSSFWorkbook(fis);
             Sheet sheet = workbook.getSheetAt(0);
 
-            // Get header row (index 7 = Excel row 8)
             Row headerRow = sheet.getRow(7);
             if (headerRow == null) throw new CustomException("Header row is missing at row 8");
 
@@ -39,12 +40,12 @@ public class ExcelUtil {
             int invoiceIndex = findHeaderIndexContaining(headers, "Invoice");
             int claimIndex = findHeaderIndexContaining(headers, "Claim");
 
-            List<InvoiceRecordDTO> records = new ArrayList<>();
+            List<InvoiceRecordDTO> allRecords = new ArrayList<>();
             int total = 0;
 
             for (int i = 8; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
-                if (row == null || isTotalRow(row) || isEmptyRow(row)) continue; // Skip if row is null, contains total, or is empty
+                if (row == null || isTotalRow(row) || isEmptyRow(row)) continue;
                 total++;
 
                 Map<String, Object> requestMap = new LinkedHashMap<>();
@@ -56,14 +57,13 @@ public class ExcelUtil {
                 InvoiceRecordDTO record = new InvoiceRecordDTO();
                 record.setRequest(requestMap);
 
-                // Extract invoice and claim number
                 if (invoiceIndex != -1 && row.getCell(invoiceIndex) != null)
                     record.setInvoiceNumber(getCellValue(row.getCell(invoiceIndex)));
                 if (claimIndex != -1 && row.getCell(claimIndex) != null)
                     record.setClaimNumber(getCellValue(row.getCell(claimIndex)));
 
                 record.setStatus("PENDING");
-                records.add(record);
+                allRecords.add(record);
             }
 
             workbook.close();
@@ -78,20 +78,25 @@ public class ExcelUtil {
             meta.setSuccessRecCount(total);
             meta.setPendingRecCount(0);
             meta.setErrorRecCount(0);
-            meta.setStatus("pending");
-            meta.setStatusDescription("pending");
+            meta.setStatus("PENDING");
+            meta.setStatusDescription("PENDING");
             meta.setCreatedBy("xyz");
             meta.setUrl("http://dummy-url.com/file/" + meta.getCorrelationId());
 
-            ExcelRecordRequestDTO recordDTO = new ExcelRecordRequestDTO();
-            recordDTO.setInvoiceFileMasterId(new Random().nextLong(100000, 999999));
-            recordDTO.setInvoiceFileRecords(records);
+            // Batching
+            List<ExcelRecordRequestDTO> batches = new ArrayList<>();
+            for (int i = 0; i < allRecords.size(); i += BATCH_SIZE) {
+                List<InvoiceRecordDTO> batch = allRecords.subList(i, Math.min(i + BATCH_SIZE, allRecords.size()));
+                ExcelRecordRequestDTO dto = new ExcelRecordRequestDTO();
+                dto.setInvoiceFileMasterId(new Random().nextLong(100000, 999999));
+                dto.setInvoiceFileRecords(batch);
+                batches.add(dto);
+            }
 
             ExcelResponseDTO response = new ExcelResponseDTO();
             response.setMetadata(meta);
-            response.setRecordDetails(recordDTO);
+            response.setRecordDetails(batches);
 
-            // Save JSON to disk
             String outputPath = "C:\\Users\\hitesh.paliwal\\Desktop\\SG Project Files\\Excel File\\Output\\Allow Wheel";
             String savedFile = saveJsonToFile(response, outputPath, "invoice_data");
             System.out.println("✅ JSON saved at: " + savedFile);
@@ -105,9 +110,7 @@ public class ExcelUtil {
 
     private static boolean isEmptyRow(Row row) {
         for (Cell cell : row) {
-            if (cell != null && !getCellValue(cell).trim().isEmpty()) {
-                return false;
-            }
+            if (cell != null && !getCellValue(cell).trim().isEmpty()) return false;
         }
         return true;
     }
@@ -163,10 +166,8 @@ public class ExcelUtil {
         if (raw.contains("insured")) return "insured";
         if (raw.contains("date")) return "dateOfCompletion";
         if (raw.contains("vin")) return "vin";
-
         if (raw.contains("invoice") && raw.contains("amount")) return "invoiceAmount";
         if (raw.contains("invoice")) return "invoiceNumber";
-
         return raw.replaceAll("\\s+", "_");
     }
 
@@ -178,4 +179,6 @@ public class ExcelUtil {
         mapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonObj);
         return file.getAbsolutePath();
     }
+
+
 }
