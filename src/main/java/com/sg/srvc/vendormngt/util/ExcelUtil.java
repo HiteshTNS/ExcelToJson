@@ -18,7 +18,8 @@ import java.util.*;
 
 public class ExcelUtil {
 
-    private static final int BATCH_SIZE = 300;
+    private static final int BATCH_SIZE = 200;
+    private static final List<String> HEADER_KEYWORDS = Arrays.asList("invoice", "contract", "claim", "insured", "date", "vin", "amount");
 
     public static ExcelResponseDTO readAndConvert(String filePath) {
         try {
@@ -29,9 +30,12 @@ public class ExcelUtil {
             Workbook workbook = new XSSFWorkbook(fis);
             Sheet sheet = workbook.getSheetAt(0);
 
-            Row headerRow = sheet.getRow(7);
-            if (headerRow == null) throw new CustomException("Header row is missing at row 7");
+            // Dynamically find the header row
+            int headerRowIndex = findHeaderRow(sheet);
+            if (headerRowIndex == -1) throw new CustomException("Header row is missing or invalid");
 
+            // Extract header values
+            Row headerRow = sheet.getRow(headerRowIndex);
             List<String> headers = new ArrayList<>();
             for (Cell cell : headerRow) {
                 headers.add(getCellValue(cell).trim());
@@ -43,7 +47,7 @@ public class ExcelUtil {
             List<InvoiceRecordDTO> allRecords = new ArrayList<>();
             int total = 0;
 
-            for (int i = 8; i <= sheet.getLastRowNum(); i++) {
+            for (int i = headerRowIndex + 1; i <= sheet.getLastRowNum(); i++) {
                 Row row = sheet.getRow(i);
                 if (row == null || isTotalRow(row) || isEmptyRow(row)) continue;
                 total++;
@@ -108,6 +112,24 @@ public class ExcelUtil {
         }
     }
 
+    // Function to dynamically find the header row
+    private static int findHeaderRow(Sheet sheet) {
+        for (int i = 0; i <= sheet.getLastRowNum(); i++) {
+            Row row = sheet.getRow(i);
+            if (row != null) {
+                for (int j = 0; j < row.getLastCellNum(); j++) {
+                    String cellValue = getCellValue(row.getCell(j)).toLowerCase();
+                    for (String keyword : HEADER_KEYWORDS) {
+                        if (cellValue.contains(keyword)) {
+                            return i; // Found header row
+                        }
+                    }
+                }
+            }
+        }
+        return -1; // No valid header row found
+    }
+
     private static boolean isEmptyRow(Row row) {
         for (Cell cell : row) {
             if (cell != null && !getCellValue(cell).trim().isEmpty()) return false;
@@ -158,17 +180,23 @@ public class ExcelUtil {
         return -1;
     }
 
-    private static String mapHeader(String raw) {
-        raw = raw.toLowerCase();
-        if (raw.contains("company")) return "companyName";
-        if (raw.contains("contract")) return "contractNumber";
-        if (raw.contains("claim")) return "claimNumber";
-        if (raw.contains("insured")) return "insured";
-        if (raw.contains("date")) return "dateOfCompletion";
-        if (raw.contains("vin")) return "vin";
-        if (raw.contains("invoice") && raw.contains("amount")) return "invoiceAmount";
-        if (raw.contains("invoice")) return "invoiceNumber";
-        return raw.replaceAll("\\s+", "_");
+    private static String mapHeader(String rawHeader) {
+        if (rawHeader == null || rawHeader.isBlank()) return "";
+
+        // Remove all non-alphanumeric characters (excluding spaces and underscores)
+        String cleaned = rawHeader.replaceAll("[^a-zA-Z0-9\\s_]", "");
+
+        // Convert to lowercase and split by space or underscore
+        String[] parts = cleaned.trim().toLowerCase().split("[\\s_]+");
+        if (parts.length == 0) return "";
+
+        StringBuilder result = new StringBuilder(parts[0]);
+
+        for (int i = 1; i < parts.length; i++) {
+            result.append(parts[i].substring(0, 1).toUpperCase()).append(parts[i].substring(1));
+        }
+
+        return result.toString();
     }
 
     public static String saveJsonToFile(Object jsonObj, String outputDir, String filePrefix) throws IOException {
@@ -179,6 +207,4 @@ public class ExcelUtil {
         mapper.writerWithDefaultPrettyPrinter().writeValue(file, jsonObj);
         return file.getAbsolutePath();
     }
-
-
 }
