@@ -11,7 +11,7 @@ import java.util.Map;
 public class InvoiceRecordDTO {
     private String invoiceNumber;
     private String claimNumber;
-    private Map<String, Object> request; // Now dynamic
+    private Map<String, Object> request;
     private String status;
 
     // Getters and Setters

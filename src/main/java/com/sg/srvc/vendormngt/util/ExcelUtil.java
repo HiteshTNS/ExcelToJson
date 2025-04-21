@@ -18,7 +18,7 @@ import java.util.*;
 
 public class ExcelUtil {
 
-    private static final int BATCH_SIZE = 100;
+    private static final int BATCH_SIZE = 300;
 
     public static ExcelResponseDTO readAndConvert(String filePath) {
         try {
@@ -30,7 +30,7 @@ public class ExcelUtil {
             Sheet sheet = workbook.getSheetAt(0);
 
             Row headerRow = sheet.getRow(7);
-            if (headerRow == null) throw new CustomException("Header row is missing at row 8");
+            if (headerRow == null) throw new CustomException("Header row is missing at row 7");
 
             List<String> headers = new ArrayList<>();
             for (Cell cell : headerRow) {
