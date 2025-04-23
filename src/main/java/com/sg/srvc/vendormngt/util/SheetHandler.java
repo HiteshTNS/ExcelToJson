@@ -44,7 +44,7 @@ public class SheetHandler implements XSSFSheetXMLHandler.SheetContentsHandler {
                 return;  // Skip this row
             }
 
-            Map<String, Object> request = new HashMap<>();
+            Map<String, Object> request = new LinkedHashMap<>();
             for (int i = 0; i < headers.size(); i++) {
                 String key = headers.get(i);
                 if (key != null && !key.isBlank()) {
