@@ -4,7 +4,7 @@ import java.util.*;
 
 public class ExcelHeaderUtils {
 
-    public static final List<String> HEADER_KEYWORDS = Arrays.asList("invoice", "contract", "claim", "insured", "date", "vin", "amount");
+    public static final List<String> HEADER_KEYWORDS = Arrays.asList("Company Name","invoice", "contract", "claim", "insured", "date", "vin", "amount");
 
     public static String mapHeader(String rawHeader) {
         if (rawHeader == null || rawHeader.isBlank()) return "";

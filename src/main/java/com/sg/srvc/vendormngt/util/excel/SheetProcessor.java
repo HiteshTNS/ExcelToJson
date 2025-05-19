@@ -31,10 +31,23 @@ public class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler 
                     .filter(val -> ExcelHeaderUtils.HEADER_KEYWORDS.stream().anyMatch(val::contains))
                     .count();
 
+            System.out.println(match);
+
+            // If enough matches are found, this row is the header row
             if (match >= 3) {
+                //  mapping the values to headers and flag the header row as detected
                 currentRowMap.values().forEach(val -> headers.add(ExcelHeaderUtils.mapHeader((String) val)));
                 headerRowDetected = true;
+                // Print headers for debugging purposes
+                System.out.println("Header Row Detected:");
+                headers.forEach(header -> System.out.println("Header: " + header));
+
+                //Exact count validation
+                if (headers.size() != ExcelHeaderUtils.HEADER_KEYWORDS.size()) {
+                    throw new RuntimeException("Header validation failed: Expected " + ExcelHeaderUtils.HEADER_KEYWORDS.size() + " headers but found " + headers.size());
+                }
             }
+
 
         } else if (!headers.isEmpty() && !ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
 //            if (ExcelHeaderUtils.isTotalRow(currentRowMap)) return;
@@ -72,3 +85,7 @@ public class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler 
     @Override
     public void headerFooter(String text, boolean isHeader, String tagName) {}
 }
+
+
+
+
