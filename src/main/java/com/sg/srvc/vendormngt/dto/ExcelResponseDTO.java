@@ -10,7 +10,6 @@ import java.util.List;
 @NoArgsConstructor
 @ToString
 public class ExcelResponseDTO {
-    public ExcelMetadataResponseDTO metadata;
     private List<ExcelRecordRequestDTO> recordDetails; // Batched
 
     // Getters and Setters

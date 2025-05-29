@@ -10,9 +10,11 @@ import lombok.*;
 @ToString
 public class ExcelRequestDTO {
 
-    @NotBlank(message = "File path must not be blank")
-    private String filePath;
+    @NotBlank(message = "File Name must not be blank")
+    private String fileName;
+    @NotBlank(message = "correlationId must not be blank")
+    private String correlationId;
+    @NotBlank(message = "vendorCode must not be blank")
+    private String vendorCode;
 
-//    public String getFilePath() { return filePath; }
-//    public void setFilePath(String filePath) { this.filePath = filePath; }
 }

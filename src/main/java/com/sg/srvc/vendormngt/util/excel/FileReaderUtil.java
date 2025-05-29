@@ -1,7 +1,7 @@
 package com.sg.srvc.vendormngt.util.excel;
 
-import com.sg.srvc.vendormngt.dto.ExcelMetadataResponseDTO;
 import com.sg.srvc.vendormngt.dto.ExcelRecordRequestDTO;
+import com.sg.srvc.vendormngt.dto.ExcelRequestDTO;
 import com.sg.srvc.vendormngt.dto.ExcelResponseDTO;
 import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
 import com.sg.srvc.vendormngt.exception.CustomException;
@@ -17,7 +17,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.*;
 import java.util.zip.ZipException;
 
@@ -37,16 +36,14 @@ public class FileReaderUtil {
             throw new CustomException("Unsupported file format. Only .xlsx and .csv allowed.");
         }
 
-        ExcelMetadataResponseDTO meta = createMetadata(filePath, allRecords.size());
 
         List<ExcelRecordRequestDTO> batches = (allRecords.size() > THREAD_THRESHOLD)
                 ? processInParallel(allRecords)
                 : processSequentially(allRecords);
 
         ExcelResponseDTO response = new ExcelResponseDTO();
-        response.setMetadata(meta);
         response.setRecordDetails(batches);
-
+        ExcelRequestDTO requestDTO = new ExcelRequestDTO();
         try {
             String path = JsonWriter.save(response,
                     "C:\\Users\\hitesh.paliwal\\Desktop\\SG Project Files\\Excel File\\Output\\Allow Wheel",
@@ -87,23 +84,6 @@ public class FileReaderUtil {
         }
 
         return allRecords;
-    }
-
-    private static ExcelMetadataResponseDTO createMetadata(String filePath, int totalRecords) {
-        ExcelMetadataResponseDTO meta = new ExcelMetadataResponseDTO();
-        meta.setCorrelationId(UUID.randomUUID().toString());
-        meta.setVendorCode("xyz");
-        meta.setName(new File(filePath).getName());
-        meta.setFileExtension(filePath.substring(filePath.lastIndexOf('.') + 1));
-        meta.setTotalRecCount(totalRecords);
-        meta.setSuccessRecCount(totalRecords); // Assuming all success for now
-        meta.setPendingRecCount(0);
-        meta.setErrorRecCount(0);
-        meta.setUrl("http://dummy.url/file/" + UUID.randomUUID());
-        meta.setStatus("PENDING");
-        meta.setStatusDescription("File processed successfully and pending further action");
-        meta.setCreatedBy("system");
-        return meta;
     }
 
     private static List<ExcelRecordRequestDTO> processSequentially(List<InvoiceRecordDTO> allRecords) {

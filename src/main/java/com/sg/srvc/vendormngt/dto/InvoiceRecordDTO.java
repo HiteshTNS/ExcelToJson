@@ -13,6 +13,9 @@ public class InvoiceRecordDTO {
     private String claimNumber;
     private Map<String, Object> request;
     private String status;
+    private String statusDescription;
+    private String createdBy;
+    private String createdDate;
 
     // Getters and Setters
 //    public String getInvoiceNumber() {
