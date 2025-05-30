@@ -4,7 +4,10 @@ import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
 import org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler;
 import org.apache.poi.xssf.usermodel.XSSFComment;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler {
 
@@ -70,7 +73,13 @@ public class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler 
             dto.setClaimNumber(String.valueOf(request.getOrDefault("claim", "")));
             dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoice", "")));
             dto.setRequest(request);
-            dto.setStatus("PENDING");
+//            dto.setStatus("PENDING");
+//            private String statusDescription;
+//            private String createdBy;
+//            private LocalDateTime createdDate;
+//            dto.setCreatedBy("John");
+//            dto.setCreatedDate(LocalDateTime.now());
+//            dto.setStatusDescription("DOne");
             records.add(dto);
         }
     }

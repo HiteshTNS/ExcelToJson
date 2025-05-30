@@ -4,10 +4,10 @@ import lombok.Data;
 
 import java.util.List;
 @Data
-public class VimInvoiceResponseDTO {
+public class InvoiceFileResponseDTO {
     private int vimInvoiceId;
     private String correlationId;
-    private List<InvoiceDTO> invoiceList;
+    private List<InvoiceRecordDTO> invoiceList;
 
     // getters and setters
 }

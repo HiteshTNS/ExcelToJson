@@ -1,8 +1,6 @@
 package com.sg.srvc.vendormngt.util.excel;
 
-import com.sg.srvc.vendormngt.dto.ExcelRecordRequestDTO;
-import com.sg.srvc.vendormngt.dto.ExcelRequestDTO;
-import com.sg.srvc.vendormngt.dto.ExcelResponseDTO;
+import com.sg.srvc.vendormngt.dto.InvoiceFileResponseDTO;
 import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
 import com.sg.srvc.vendormngt.exception.CustomException;
 import org.apache.poi.openxml4j.opc.OPCPackage;
@@ -15,9 +13,9 @@ import org.xml.sax.XMLReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.*;
 import java.util.zip.ZipException;
 
 public class FileReaderUtil {
@@ -25,7 +23,7 @@ public class FileReaderUtil {
     private static final int THREAD_THRESHOLD = 1000;
     private static final int BATCH_SIZE = 2500;
 
-    public static ExcelResponseDTO readAndConvert(String filePath) {
+    public static InvoiceFileResponseDTO readAndConvert(String filePath,String correlationId) {
         List<InvoiceRecordDTO> allRecords;
 
         if (filePath.toLowerCase().endsWith(".csv")) {
@@ -36,19 +34,30 @@ public class FileReaderUtil {
             throw new CustomException("Unsupported file format. Only .xlsx and .csv allowed.");
         }
 
+        // Add metadata to each record
+        LocalDateTime now = LocalDateTime.now();
+        String createdBy = "John Doe"; // Hardcoded for now
 
-        List<ExcelRecordRequestDTO> batches = (allRecords.size() > THREAD_THRESHOLD)
-                ? processInParallel(allRecords)
-                : processSequentially(allRecords);
+        for (InvoiceRecordDTO record : allRecords) {
+            record.setCreatedDate(now);
+            record.setCreatedBy(createdBy);
 
-        ExcelResponseDTO response = new ExcelResponseDTO();
-        response.setRecordDetails(batches);
-        ExcelRequestDTO requestDTO = new ExcelRequestDTO();
+            if (record.getStatus() == null) {
+                record.setStatus("VALIDATION_FAILED");
+                record.setStatusDescription("Missing required fields");
+            }
+        }
+
+        InvoiceFileResponseDTO response = new InvoiceFileResponseDTO();
+        response.setVimInvoiceId(10); // Hardcoded, can be parameterized
+        response.setCorrelationId(correlationId);
+        response.setInvoiceList(allRecords);
+
         try {
-            String path = JsonWriter.save(response,
+            JsonWriter.save(response,
                     "C:\\Users\\hitesh.paliwal\\Desktop\\SG Project Files\\Excel File\\Output\\Allow Wheel",
                     "invoice_data");
-            System.out.println("✅ JSON saved at: " + path);
+            System.out.println("✅ JSON saved successfully.");
         } catch (IOException e) {
             throw new CustomException("Failed to save output: " + e.getMessage());
         }
@@ -58,8 +67,6 @@ public class FileReaderUtil {
 
     private static List<InvoiceRecordDTO> readXlsx(String filePath) {
         List<InvoiceRecordDTO> allRecords = new ArrayList<>();
-
-//        ZipSecureFile.setMinInflateRatio(0.005); // to prevent zip bomb issues, optional
 
         try (OPCPackage pkg = OPCPackage.open(new File(filePath), PackageAccess.READ)) {
             XSSFReader reader = new XSSFReader(pkg);
@@ -86,53 +93,53 @@ public class FileReaderUtil {
         return allRecords;
     }
 
-    private static List<ExcelRecordRequestDTO> processSequentially(List<InvoiceRecordDTO> allRecords) {
-        List<ExcelRecordRequestDTO> batches = new ArrayList<>();
-        int totalRecords = allRecords.size();
-
-        for (int i = 0; i < totalRecords; i += BATCH_SIZE) {
-            int end = Math.min(i + BATCH_SIZE, totalRecords);
-            List<InvoiceRecordDTO> subList = allRecords.subList(i, end);
-
-            ExcelRecordRequestDTO batch = new ExcelRecordRequestDTO();
-            batch.setInvoiceFileRecords(new ArrayList<>(subList));
-            batch.setInvoiceFileMasterId(ThreadLocalRandom.current().nextLong(100000, 999999));
-            batches.add(batch);
-        }
-        return batches;
-    }
-
-    private static List<ExcelRecordRequestDTO> processInParallel(List<InvoiceRecordDTO> allRecords) {
-        int totalRecords = allRecords.size();
-        int numBatches = (totalRecords + BATCH_SIZE - 1) / BATCH_SIZE;
-
-        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-        List<Future<ExcelRecordRequestDTO>> futures = new ArrayList<>();
-
-        for (int i = 0; i < totalRecords; i += BATCH_SIZE) {
-            int start = i;
-            int end = Math.min(i + BATCH_SIZE, totalRecords);
-            List<InvoiceRecordDTO> batchList = new ArrayList<>(allRecords.subList(start, end));
-
-            futures.add(executor.submit(() -> {
-                ExcelRecordRequestDTO batch = new ExcelRecordRequestDTO();
-                batch.setInvoiceFileRecords(batchList);
-                batch.setInvoiceFileMasterId(ThreadLocalRandom.current().nextLong(100000, 999999));
-                return batch;
-            }));
-        }
-
-        List<ExcelRecordRequestDTO> batches = new ArrayList<>();
-        try {
-            for (Future<ExcelRecordRequestDTO> future : futures) {
-                batches.add(future.get());
-            }
-        } catch (InterruptedException | ExecutionException e) {
-            throw new CustomException("Error during parallel processing: " + e.getMessage());
-        } finally {
-            executor.shutdown();
-        }
-
-        return batches;
-    }
+//    private static List<ExcelRecordRequestDTO> processSequentially(List<InvoiceRecordDTO> allRecords) {
+//        List<ExcelRecordRequestDTO> batches = new ArrayList<>();
+//        int totalRecords = allRecords.size();
+//
+//        for (int i = 0; i < totalRecords; i += BATCH_SIZE) {
+//            int end = Math.min(i + BATCH_SIZE, totalRecords);
+//            List<InvoiceRecordDTO> subList = allRecords.subList(i, end);
+//
+//            ExcelRecordRequestDTO batch = new ExcelRecordRequestDTO();
+//            batch.setInvoiceFileRecords(new ArrayList<>(subList));
+//            batch.setInvoiceFileMasterId(ThreadLocalRandom.current().nextLong(100000, 999999));
+//            batches.add(batch);
+//        }
+//        return batches;
+//    }
+//
+//    private static List<ExcelRecordRequestDTO> processInParallel(List<InvoiceRecordDTO> allRecords) {
+//        int totalRecords = allRecords.size();
+//        int numBatches = (totalRecords + BATCH_SIZE - 1) / BATCH_SIZE;
+//
+//        ExecutorService executor = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+//        List<Future<ExcelRecordRequestDTO>> futures = new ArrayList<>();
+//
+//        for (int i = 0; i < totalRecords; i += BATCH_SIZE) {
+//            int start = i;
+//            int end = Math.min(i + BATCH_SIZE, totalRecords);
+//            List<InvoiceRecordDTO> batchList = new ArrayList<>(allRecords.subList(start, end));
+//
+//            futures.add(executor.submit(() -> {
+//                ExcelRecordRequestDTO batch = new ExcelRecordRequestDTO();
+//                batch.setInvoiceFileRecords(batchList);
+//                batch.setInvoiceFileMasterId(ThreadLocalRandom.current().nextLong(100000, 999999));
+//                return batch;
+//            }));
+//        }
+//
+//        List<ExcelRecordRequestDTO> batches = new ArrayList<>();
+//        try {
+//            for (Future<ExcelRecordRequestDTO> future : futures) {
+//                batches.add(future.get());
+//            }
+//        } catch (InterruptedException | ExecutionException e) {
+//            throw new CustomException("Error during parallel processing: " + e.getMessage());
+//        } finally {
+//            executor.shutdown();
+//        }
+//
+//        return batches;
+//    }
 }

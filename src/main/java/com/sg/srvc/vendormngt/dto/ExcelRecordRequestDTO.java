@@ -10,7 +10,6 @@ import java.util.List;
 @NoArgsConstructor
 @ToString
 public class ExcelRecordRequestDTO {
-    private Long invoiceFileMasterId;
     private List<InvoiceRecordDTO> invoiceFileRecords;
 
     // Getters and Setters

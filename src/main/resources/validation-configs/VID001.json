@@ -1,0 +1,77 @@
+{
+  "vendorCode": "VID001",
+  "columns": [
+    {
+      "excelHeader": "Company Name",
+      "internalName": "companyName",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Invoice #",
+      "internalName": "invoiceNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Contract #",
+      "internalName": "contractNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Claim #",
+      "internalName": "claimNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Insured",
+      "internalName": "insured",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 50
+      }
+    },
+    {
+      "excelHeader": "Date Of Completion",
+      "internalName": "dateOfCompletion",
+      "type": "date",
+      "required": true,
+      "constraints": {
+        "format": "yyyy-MM-dd"
+      }
+    },
+    {
+      "excelHeader": "VIN",
+      "internalName": "vin",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 17
+      }
+    },
+    {
+      "excelHeader": "Invoice Amount",
+      "internalName": "invoiceAmount",
+      "type": "numeric",
+      "required": true,
+      "constraints": {
+        "min": 0.0
+      }
+    }
+  ]
+}
