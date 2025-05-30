@@ -13,10 +13,8 @@ import org.xml.sax.XMLReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.zip.ZipException;
 
 public class FileReaderUtil {
@@ -34,36 +32,7 @@ public class FileReaderUtil {
             throw new CustomException("Unsupported file format. Only .xlsx and .csv allowed.");
         }
 
-        // Add metadata to each record
-        LocalDateTime now = LocalDateTime.now();
-        String createdBy = "John Doe"; // Hardcoded for now
-
-        Map<String, Boolean> requiredFields = SheetProcessor.getRequiredFieldsForVendor(vendorCode);
-
-        for (InvoiceRecordDTO record : allRecords) {
-            record.setCreatedDate(now);
-            record.setCreatedBy(createdBy);
-
-            Map<String, Object> request = record.getRecJson();
-            boolean valid = requiredFields.entrySet().stream().allMatch(entry -> {
-                if (!entry.getValue()) return true; // not required
-                Object val = request.get(entry.getKey());
-                return val != null && !val.toString().isBlank();
-            });
-
-            if (!valid) {
-                record.setStatus("VALIDATION_FAILED");
-                record.setStatusDescription("Missing fields: " +
-                        requiredFields.keySet().stream()
-                                .filter(k -> requiredFields.get(k)) // only required
-                                .filter(k -> request.get(k) == null || request.get(k).toString().isBlank())
-                                .reduce((a, b) -> a + ", " + b).orElse(""));
-            } else {
-                record.setStatus("VALID");
-                record.setStatusDescription("Validated successfully");
-            }
-        }
-
+        SheetProcessor.validateRecords(allRecords, vendorCode);
         InvoiceFileResponseDTO response = new InvoiceFileResponseDTO();
         response.setVimInvoiceId(10); // Hardcoded, can be parameterized
         response.setCorrelationId(correlationId);

@@ -58,6 +58,45 @@ public class ExcelHeaderUtils {
         }
     }
 
+    public static Map<String, Boolean> loadRequiredFields(String vendorCode) {
+        String fileName = "configs/" + vendorCode + ".json";
+        InputStream is = ExcelHeaderUtils.class.getClassLoader().getResourceAsStream(fileName);
+
+        if (is == null) {
+            throw new CustomException("Mapping file not found for vendor: " + vendorCode);
+        }
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            VendorHeaderMapping mapping = mapper.readValue(is, VendorHeaderMapping.class);
+
+            Map<String, Boolean> requiredMap = new HashMap<>();
+            for (Column col : mapping.getColumns()) {
+                requiredMap.put(col.getInternalName(), col.isRequired());
+            }
+            return requiredMap;
+        } catch (IOException e) {
+            throw new CustomException("Failed to read header mapping file for vendor: " + vendorCode);
+        }
+    }
+
+    public static List<Column> loadFullValidationRules(String vendorCode) {
+        String fileName = "configs/" + vendorCode + ".json";
+        InputStream is = ExcelHeaderUtils.class.getClassLoader().getResourceAsStream(fileName);
+
+        if (is == null) {
+            throw new CustomException("Mapping file not found for vendor: " + vendorCode);
+        }
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            VendorHeaderMapping mapping = mapper.readValue(is, VendorHeaderMapping.class);
+            return mapping.getColumns(); // Return full Column list
+        } catch (IOException e) {
+            throw new CustomException("Failed to read header mapping file for vendor: " + vendorCode);
+        }
+    }
+
 
 
 
