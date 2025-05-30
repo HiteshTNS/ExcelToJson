@@ -57,28 +57,6 @@ public class ExcelHeaderUtils {
         }
     }
 
-    public static Map<String, Boolean> loadRequiredFields(String vendorCode) {
-        String fileName = "configs/" + vendorCode + ".json";
-        InputStream is = ExcelHeaderUtils.class.getClassLoader().getResourceAsStream(fileName);
-
-        if (is == null) {
-            throw new CustomException("Mapping file not found for vendor: " + vendorCode);
-        }
-
-        try {
-            ObjectMapper mapper = new ObjectMapper();
-            VendorHeaderMapping mapping = mapper.readValue(is, VendorHeaderMapping.class);
-
-            Map<String, Boolean> requiredMap = new HashMap<>();
-            for (Column col : mapping.getColumns()) {
-                requiredMap.put(col.getInternalName(), col.isRequired());
-            }
-            return requiredMap;
-        } catch (IOException e) {
-            throw new CustomException("Failed to read header mapping file for vendor: " + vendorCode);
-        }
-    }
-
     public static List<Column> loadFullValidationRules(String vendorCode) {
         String fileName = "configs/" + vendorCode + ".json";
         InputStream is = ExcelHeaderUtils.class.getClassLoader().getResourceAsStream(fileName);
@@ -97,32 +75,10 @@ public class ExcelHeaderUtils {
     }
 
 
-
-
-    public static String mapHeader(String rawHeader) {
-        if (rawHeader == null || rawHeader.isBlank()) return "";
-        String cleaned = rawHeader.replaceAll("[^a-zA-Z0-9\\s_]", "");
-        String[] parts = cleaned.trim().toLowerCase().split("[\\s_]+");
-        if (parts.length == 0) return "";
-        StringBuilder result = new StringBuilder(parts[0]);
-        for (int i = 1; i < parts.length; i++) {
-            result.append(parts[i].substring(0, 1).toUpperCase()).append(parts[i].substring(1));
-        }
-        return result.toString();
-    }
-
     public static boolean isEmptyRow(Map<String, Object> row) {
         return row.values().stream().allMatch(val -> val == null || val.toString().trim().isEmpty());
     }
 
-    public static boolean isTotalRow(Map<String, Object> row) {
-        for (Object value : row.values()) {
-            if (value != null && value.toString().toLowerCase().contains("total")) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     public static int getColumnIndex(String cellRef) {
         int col = 0;
