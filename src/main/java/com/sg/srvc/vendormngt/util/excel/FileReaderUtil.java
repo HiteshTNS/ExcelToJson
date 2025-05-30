@@ -32,7 +32,7 @@ public class FileReaderUtil {
             throw new CustomException("Unsupported file format. Only .xlsx and .csv allowed.");
         }
 
-        SheetProcessor.validateRecords(allRecords, vendorCode);
+        RowProcessorUtil.validateRecords(allRecords, vendorCode);
         InvoiceFileResponseDTO response = new InvoiceFileResponseDTO();
         response.setVimInvoiceId(10); // Hardcoded, can be parameterized
         response.setCorrelationId(correlationId);

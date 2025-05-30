@@ -7,6 +7,8 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.util.*;
 
+import static com.sg.srvc.vendormngt.util.excel.RowProcessorUtil.isNullOrEmptyOrLiteralNull;
+
 public class CsvProcessor {
 
     public static List<InvoiceRecordDTO> parseCsv(String filePath, String vendorCode) {
@@ -74,7 +76,10 @@ public class CsvProcessor {
                     dto.setClaimNumber(String.valueOf(request.getOrDefault("claimNumber", "")));
                     dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoiceNumber", "")));
                     dto.setRecJson(request);
-                    dto.setStatus("PENDING");
+                    // Skip row if invoiceNumber and claimNumber are empty/null/"null"
+                    if (isNullOrEmptyOrLiteralNull(dto.getInvoiceNumber()) && isNullOrEmptyOrLiteralNull(dto.getClaimNumber())) {
+                        continue; // skip this row
+                    }
                     records.add(dto);
                 }
             }
