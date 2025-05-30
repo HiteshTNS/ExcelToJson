@@ -14,7 +14,6 @@ public class ExcelHeaderUtils {
     public static final List<String> HEADER_KEYWORDS = Arrays.asList("Company Name","invoice", "contract", "claim", "insured", "date", "vin", "amount");
 
     public static Map<String, String> loadHeaderMapping(String vendorCode) {
-        String fileName = "configs/" + vendorCode + ".json"; // e.g. VID001-mapping.json
         InputStream is = ExcelHeaderUtils.class.getClassLoader().getResourceAsStream("configs/" + vendorCode + ".json");
 
         if (is == null) {

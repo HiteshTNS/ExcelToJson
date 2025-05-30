@@ -1,11 +1,16 @@
 package com.sg.srvc.vendormngt.util.excel;
 
 import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
+import com.sg.srvc.vendormngt.exception.CustomException;
 
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static com.sg.srvc.vendormngt.util.excel.RowProcessorUtil.isNullOrEmptyOrLiteralNull;
 
@@ -83,7 +88,10 @@ public class CsvProcessor {
                     records.add(dto);
                 }
             }
-        } catch (IOException e) {
+        }catch (FileNotFoundException notFound) {
+            throw new CustomException("Error processing CSV file: Can't open the specified file input stream from file: '" + filePath + "'");
+        }
+        catch (IOException e) {
             throw new RuntimeException("Error reading CSV file: " + e.getMessage(), e);
         }
 
