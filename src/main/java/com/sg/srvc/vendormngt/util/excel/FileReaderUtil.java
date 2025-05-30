@@ -16,20 +16,20 @@ import java.io.InputStream;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.zip.ZipException;
 
 public class FileReaderUtil {
 
-    private static final int THREAD_THRESHOLD = 1000;
-    private static final int BATCH_SIZE = 2500;
+//    private static final int THREAD_THRESHOLD = 1000;
+//    private static final int BATCH_SIZE = 2500;
 
-    public static InvoiceFileResponseDTO readAndConvert(String filePath,String correlationId) {
+    public static InvoiceFileResponseDTO readAndConvert(String filePath,String correlationId,String vendorCode) {
         List<InvoiceRecordDTO> allRecords;
-
         if (filePath.toLowerCase().endsWith(".csv")) {
-            allRecords = CsvProcessor.parseCsv(filePath);
+            allRecords = CsvProcessor.parseCsv(filePath,vendorCode);
         } else if (filePath.toLowerCase().endsWith(".xlsx")) {
-            allRecords = readXlsx(filePath);
+            allRecords = readXlsx(filePath,vendorCode);
         } else {
             throw new CustomException("Unsupported file format. Only .xlsx and .csv allowed.");
         }
@@ -38,13 +38,29 @@ public class FileReaderUtil {
         LocalDateTime now = LocalDateTime.now();
         String createdBy = "John Doe"; // Hardcoded for now
 
+        Map<String, Boolean> requiredFields = SheetProcessor.getRequiredFieldsForVendor(vendorCode);
+
         for (InvoiceRecordDTO record : allRecords) {
             record.setCreatedDate(now);
             record.setCreatedBy(createdBy);
 
-            if (record.getStatus() == null) {
+            Map<String, Object> request = record.getRecJson();
+            boolean valid = requiredFields.entrySet().stream().allMatch(entry -> {
+                if (!entry.getValue()) return true; // not required
+                Object val = request.get(entry.getKey());
+                return val != null && !val.toString().isBlank();
+            });
+
+            if (!valid) {
                 record.setStatus("VALIDATION_FAILED");
-                record.setStatusDescription("Missing required fields");
+                record.setStatusDescription("Missing fields: " +
+                        requiredFields.keySet().stream()
+                                .filter(k -> requiredFields.get(k)) // only required
+                                .filter(k -> request.get(k) == null || request.get(k).toString().isBlank())
+                                .reduce((a, b) -> a + ", " + b).orElse(""));
+            } else {
+                record.setStatus("VALID");
+                record.setStatusDescription("Validated successfully");
             }
         }
 
@@ -65,7 +81,7 @@ public class FileReaderUtil {
         return response;
     }
 
-    private static List<InvoiceRecordDTO> readXlsx(String filePath) {
+    private static List<InvoiceRecordDTO> readXlsx(String filePath,String vendorCode) {
         List<InvoiceRecordDTO> allRecords = new ArrayList<>();
 
         try (OPCPackage pkg = OPCPackage.open(new File(filePath), PackageAccess.READ)) {
@@ -73,8 +89,7 @@ public class FileReaderUtil {
             XSSFReader.SheetIterator sheets = (XSSFReader.SheetIterator) reader.getSheetsData();
 
             DataFormatter formatter = new DataFormatter();
-            SheetProcessor handler = new SheetProcessor(allRecords);
-
+            SheetProcessor handler = new SheetProcessor(allRecords,vendorCode);
             while (sheets.hasNext()) {
                 try (InputStream sheetStream = sheets.next()) {
                     XMLReader parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader();

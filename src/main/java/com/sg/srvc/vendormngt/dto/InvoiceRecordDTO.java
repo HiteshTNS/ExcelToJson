@@ -13,7 +13,7 @@ import java.util.Map;
 public class InvoiceRecordDTO {
     private String invoiceNumber;
     private String claimNumber;
-    private Map<String, Object> request;  // Replaces RecJsonDTO
+    private Map<String, Object> recJson;  // Replaces RecJsonDTO
     private String status;
     private String statusDescription;
     private String createdBy;

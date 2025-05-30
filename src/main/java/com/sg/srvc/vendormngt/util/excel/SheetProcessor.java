@@ -4,97 +4,158 @@ import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
 import org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler;
 import org.apache.poi.xssf.usermodel.XSSFComment;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 public class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler {
 
     private final List<InvoiceRecordDTO> records;
     private final List<String> headers = new ArrayList<>();
+    private final String vendorCode;
+    private final Map<String, String> excelToInternalMap;
+    private final Map<String, Boolean> requiredFields;
     private Map<String, Object> currentRowMap;
     private boolean headerRowDetected = false;
 
-    public SheetProcessor(List<InvoiceRecordDTO> records) {
+    public SheetProcessor(List<InvoiceRecordDTO> records, String vendorCode) {
         this.records = records;
+        this.vendorCode = vendorCode;
+        this.excelToInternalMap = ExcelHeaderUtils.loadHeaderMapping(vendorCode);
+        this.requiredFields = ExcelHeaderUtils.loadValidationRules(vendorCode);
+//        loadVendorHeaderMapping(vendorCode);
     }
+
+    public static Map<String, Boolean> getRequiredFieldsForVendor(String vendorCode) {
+        return ExcelHeaderUtils.loadValidationRules(vendorCode);
+    }
+
+
 
     @Override
     public void startRow(int rowNum) {
-        currentRowMap = new LinkedHashMap<>(); // temp data comapny details
+        currentRowMap = new LinkedHashMap<>();
     }
 
     @Override
     public void endRow(int rowNum) {
         if (!headerRowDetected) {
-            long match = currentRowMap.values().stream()
+            long matchCount = currentRowMap.values().stream()
                     .filter(val -> val instanceof String)
                     .map(val -> ((String) val).toLowerCase())
-                    .filter(val -> ExcelHeaderUtils.HEADER_KEYWORDS.stream().anyMatch(val::contains))
+                    .filter(excelToInternalMap::containsKey)
                     .count();
 
-            System.out.println(match);
-
-            // If enough matches are found, this row is the header row
-            if (match >= 3) {
-                //  mapping the values to headers and flag the header row as detected
-                currentRowMap.values().forEach(val -> headers.add(ExcelHeaderUtils.mapHeader((String) val)));
+            if (matchCount >= 3) {
+                currentRowMap.values().forEach(val -> headers.add(val.toString()));
                 headerRowDetected = true;
-                // Print headers for debugging purposes
-                System.out.println("Header Row Detected:");
-                headers.forEach(header -> System.out.println("Header: " + header));
 
-                //Exact count validation
-                if (headers.size() != ExcelHeaderUtils.HEADER_KEYWORDS.size()) {
-                    throw new RuntimeException("Header validation failed: Expected " + ExcelHeaderUtils.HEADER_KEYWORDS.size() + " headers but found " + headers.size());
+                System.out.println("✅ Header Row Detected:");
+                headers.forEach(h -> System.out.println("Header: " + h));
+            }
+
+        } else if (!headers.isEmpty() && !ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
+            List<String> errorMessages = new ArrayList<>();
+            Map<String, Object> request = new LinkedHashMap<>();
+
+            for (int i = 0; i < headers.size(); i++) {
+                String rawHeader = headers.get(i).trim().toLowerCase();
+                String internalKey = excelToInternalMap.getOrDefault(rawHeader, rawHeader);
+                Object value = currentRowMap.getOrDefault(String.valueOf(i), null);
+                Object cleanedValue = cleanValue(value); //cleaning and formating
+                request.put(internalKey, cleanedValue);
+            }
+
+            // **Put your summary row check here:**
+            boolean isSummaryRow = request.values().stream()
+                    .filter(Objects::nonNull)
+                    .map(Object::toString)
+                    .anyMatch(val -> val.trim().equalsIgnoreCase("total")
+                            || val.trim().equalsIgnoreCase("subtotal")
+                            || val.trim().equalsIgnoreCase("summary")
+                            || val.trim().equalsIgnoreCase("grand total")
+                            || val.trim().equalsIgnoreCase("balance"));
+
+            if (isSummaryRow) {
+                // Skip this row
+                return;
+            }
+
+            // Minimal validation for required fields
+//            boolean valid = true;
+            for (Map.Entry<String, Boolean> entry : requiredFields.entrySet()) {
+                String key = entry.getKey();
+                boolean isRequired = entry.getValue();
+
+                if (isRequired) {
+                    Object val = request.get(key);
+                    if (val == null || val.toString().isBlank()) {
+//                        valid = false;
+                        errorMessages.add("Field '" + key + "' is required but missing.");
+                        break;
+                    }
                 }
             }
 
-
-        } else if (!headers.isEmpty() && !ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
-//            if (ExcelHeaderUtils.isTotalRow(currentRowMap)) return;
-
-            // ✅ Skip rows missing any data in header columns
-            boolean hasAllData = headers.stream().allMatch(header -> {
-                Object value = currentRowMap.getOrDefault(String.valueOf(headers.indexOf(header)), null);
-                return value != null && !value.toString().trim().isEmpty();
-            });
-            if (!hasAllData) return;
-
-            Map<String, Object> request = new LinkedHashMap<>();
-            for (int i = 0; i < headers.size(); i++) {
-                String key = headers.get(i);
-                Object value = currentRowMap.getOrDefault(String.valueOf(i), null);
-                request.put(key, value);
-            }
+//            if (!valid) return;
 
             InvoiceRecordDTO dto = new InvoiceRecordDTO();
-            dto.setClaimNumber(String.valueOf(request.getOrDefault("claim", "")));
-            dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoice", "")));
-            dto.setRequest(request);
-//            dto.setStatus("PENDING");
-//            private String statusDescription;
-//            private String createdBy;
-//            private LocalDateTime createdDate;
-//            dto.setCreatedBy("John");
-//            dto.setCreatedDate(LocalDateTime.now());
-//            dto.setStatusDescription("DOne");
+            dto.setClaimNumber(String.valueOf(request.getOrDefault("claimNumber", "")));
+            dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoiceNumber", "")));
+            dto.setRecJson(request);
+            if (!errorMessages.isEmpty()) {
+                dto.setStatus("VALIDATION_FAILED");
+                dto.setStatusDescription(String.valueOf(errorMessages));
+            } else {
+                dto.setStatus("VALID");
+            }
             records.add(dto);
         }
     }
 
-    //This stores cell values into currentRowMap using column index as the key.
     @Override
     public void cell(String cellReference, String formattedValue, XSSFComment comment) {
-        int colIndex = ExcelHeaderUtils.getColumnIndex(cellReference); // Converts "A1" → 0, "B1" → 1, etc.
+        int colIndex = ExcelHeaderUtils.getColumnIndex(cellReference);
         currentRowMap.put(String.valueOf(colIndex), formattedValue != null ? formattedValue.trim() : "");
     }
 
     @Override
-    public void headerFooter(String text, boolean isHeader, String tagName) {}
+    public void headerFooter(String text, boolean isHeader, String tagName) {
+        // No-op
+    }
+
+    private Object cleanValue(Object value) {
+        if (value == null) return null;
+
+        String val = value.toString().trim();
+        val = val.strip();
+        // Try parsing as date using common date patterns
+        List<String> datePatterns = Arrays.asList(
+                "M/d/yy", "MM/dd/yy", "M/d/yyyy", "MM/dd/yyyy",
+                "yyyy-MM-dd", "yyyy/MM/dd", "dd-MM-yyyy", "dd/MM/yyyy"
+        );
+
+        for (String pattern : datePatterns) {
+            try {
+                java.text.SimpleDateFormat inputFormat = new java.text.SimpleDateFormat(pattern);
+                inputFormat.setLenient(false);
+                Date parsedDate = inputFormat.parse(val);
+                java.text.SimpleDateFormat outputFormat = new java.text.SimpleDateFormat("yyyy-MM-dd");
+                return outputFormat.format(parsedDate);
+            } catch (Exception e) {
+                // Not a date, continue
+            }
+        }
+
+        // Remove special characters except letters, digits, dot, slash, dash, space, and minus sign
+        // This keeps things like addresses, codes, etc., cleaner
+        val = val.replaceAll("[^a-zA-Z0-9.\\-/ \\-]", "");
+
+        val = val.strip();
+        // If after cleaning the string is empty, return null
+        if (val.isBlank()) return null;
+
+        return val;
+    }
+
+
+
 }
-
-
-
-

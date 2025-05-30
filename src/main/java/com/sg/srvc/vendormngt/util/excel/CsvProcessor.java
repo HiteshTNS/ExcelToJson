@@ -9,71 +9,71 @@ import java.util.*;
 
 public class CsvProcessor {
 
-    public static List<InvoiceRecordDTO> parseCsv(String filePath) {
+    public static List<InvoiceRecordDTO> parseCsv(String filePath, String vendorCode) {
         List<InvoiceRecordDTO> records = new ArrayList<>();
         List<String> headers = new ArrayList<>();
         boolean headerDetected = false;
 
+        // Load vendor-specific mappings
+        Map<String, String> excelToInternalMap = ExcelHeaderUtils.loadHeaderMapping(vendorCode);
+        Map<String, Boolean> requiredFields = ExcelHeaderUtils.loadValidationRules(vendorCode);
+
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String line;
             while ((line = br.readLine()) != null) {
-                String[] values = line.split(",", -1); // -1 to include trailing empty strings
+                String[] values = line.split(",", -1); // Preserve empty values
                 List<String> rowValues = new ArrayList<>();
                 for (String val : values) {
                     rowValues.add(val.trim());
                 }
 
                 if (!headerDetected) {
-                    // Count how many header keywords appear in this row (case-insensitive)
                     long match = rowValues.stream()
                             .filter(val -> !val.isEmpty())
                             .map(String::toLowerCase)
-                            .filter(val -> ExcelHeaderUtils.HEADER_KEYWORDS.stream().anyMatch(val::contains))
+                            .filter(excelToInternalMap::containsKey)
                             .count();
 
                     if (match >= 3) {
-                        // This row is header
-                        for (String rawHeader : rowValues) {
-                            headers.add(ExcelHeaderUtils.mapHeader(rawHeader));
-                        }
+                        headers.addAll(rowValues);
                         headerDetected = true;
 
-                        if (headers.size() != ExcelHeaderUtils.HEADER_KEYWORDS.size()) {
-                            throw new RuntimeException("Header validation failed: Expected "
-                                    + ExcelHeaderUtils.HEADER_KEYWORDS.size()
-                                    + " headers but found " + headers.size());
-                        }
-                        continue; // skip header row from data
+                        System.out.println("✅ CSV Header Detected:");
+                        headers.forEach(h -> System.out.println("Header: " + h));
+                        continue;
                     }
                 } else {
-                    // Data rows after header
-
                     // Skip empty row
                     boolean isEmpty = rowValues.stream().allMatch(String::isEmpty);
                     if (isEmpty) continue;
 
-                    // Check all header columns have non-empty values
-                    boolean hasAllData = true;
-                    for (int i = 0; i < headers.size(); i++) {
-                        if (i >= rowValues.size() || rowValues.get(i).isEmpty()) {
-                            hasAllData = false;
-                            break;
-                        }
-                    }
-                    if (!hasAllData) continue;
-
                     Map<String, Object> request = new LinkedHashMap<>();
                     for (int i = 0; i < headers.size(); i++) {
-                        String key = headers.get(i);
+                        String rawHeader = headers.get(i).trim().toLowerCase();
+                        String internalKey = excelToInternalMap.getOrDefault(rawHeader, rawHeader);
                         Object value = (i < rowValues.size()) ? rowValues.get(i) : "";
-                        request.put(key, value);
-//                        System.out.println("Key : " + key);
+                        request.put(internalKey, value);
                     }
 
+                    // Validate required fields
+                    boolean valid = true;
+                    for (Map.Entry<String, Boolean> entry : requiredFields.entrySet()) {
+                        String key = entry.getKey();
+                        boolean isRequired = entry.getValue();
+                        if (isRequired) {
+                            Object val = request.get(key);
+                            if (val == null || val.toString().isBlank()) {
+                                valid = false;
+                                break;
+                            }
+                        }
+                    }
+                    if (!valid) continue;
+
                     InvoiceRecordDTO dto = new InvoiceRecordDTO();
-                    dto.setClaimNumber(String.valueOf(request.getOrDefault("claim", "")));
-                    dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoice", "")));
-                    dto.setRequest(request);
+                    dto.setClaimNumber(String.valueOf(request.getOrDefault("claimNumber", "")));
+                    dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoiceNumber", "")));
+                    dto.setRecJson(request);
                     dto.setStatus("PENDING");
                     records.add(dto);
                 }

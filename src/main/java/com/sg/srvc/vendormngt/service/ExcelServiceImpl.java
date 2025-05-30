@@ -22,6 +22,6 @@ public class ExcelServiceImpl implements ExcelService {
         String fileName = requestDTO.getFileName();
         String fullPath = baseDir + File.separator + fileName;
 
-        return FileReaderUtil.readAndConvert(fullPath,requestDTO.getCorrelationId());
+        return FileReaderUtil.readAndConvert(fullPath,requestDTO.getCorrelationId(), requestDTO.getVendorCode());
     }
 }
