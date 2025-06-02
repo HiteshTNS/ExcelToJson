@@ -1,15 +1,12 @@
 package com.sg.srvc.vendormngt.dto;
 
-import lombok.*;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 import java.util.Map;
-
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@ToString
+@Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class InvoiceRecordDTO {
     private String invoiceNumber;
     private String claimNumber;

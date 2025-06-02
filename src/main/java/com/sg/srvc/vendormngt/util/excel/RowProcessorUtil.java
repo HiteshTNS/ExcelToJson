@@ -18,8 +18,6 @@ public class RowProcessorUtil {
         return matchCount >= 3;
     }
 
-
-
     public static Object cleanValue(Object value) {
         if (value == null) return null;
 
@@ -38,29 +36,71 @@ public class RowProcessorUtil {
                 Date parsedDate = inputFormat.parse(val);
                 SimpleDateFormat outputFormat = new SimpleDateFormat("yyyy-MM-dd");
                 return outputFormat.format(parsedDate);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
         val = val.replaceAll("[^a-zA-Z0-9.\\-/ \\-]", "").strip();
         return val.isBlank() ? null : val;
     }
 
-    public static InvoiceRecordDTO mapToInvoiceDTO(List<String> headers, Map<String, Object> currentRowMap,
+    public static InvoiceRecordDTO mapToInvoiceDTO(List<String> expectedHeaders,
+                                                   Map<Integer, String> columnIndexToHeaderMap,
+                                                   Map<String, Object> currentRowMap,
                                                    Map<String, String> excelToInternalMap) {
-        Map<String, Object> request = new LinkedHashMap<>();
 
-        for (int i = 0; i < headers.size(); i++) {
-            String rawHeader = headers.get(i).trim().toLowerCase();
-            String internalKey = excelToInternalMap.getOrDefault(rawHeader, rawHeader);
-            Object value = currentRowMap.getOrDefault(String.valueOf(i), null);
-            Object cleanedValue = cleanValue(value);
-            request.put(internalKey, cleanedValue);
+        Map<String, Object> request = new LinkedHashMap<>();
+        List<String> missingHeaders = new ArrayList<>();
+
+        Map<String, Integer> headerToColumnIndex = new HashMap<>();
+        for (Map.Entry<Integer, String> entry : columnIndexToHeaderMap.entrySet()) {
+            if (entry.getValue() != null) {
+                headerToColumnIndex.put(entry.getValue().trim().toLowerCase(), entry.getKey());
+            }
+        }
+
+        Set<Integer> availableFallbackIndices = new LinkedHashSet<>();
+        for (int i = 0; i < currentRowMap.size(); i++) {
+            if (!columnIndexToHeaderMap.containsKey(i)) {
+                availableFallbackIndices.add(i);
+            }
+        }
+
+        for (String expectedHeader : expectedHeaders) {
+            String expectedLower = expectedHeader.toLowerCase();
+            String internalKey = excelToInternalMap.getOrDefault(expectedLower, expectedLower);
+            Object value = null;
+
+            if (headerToColumnIndex.containsKey(expectedLower)) {
+                Integer index = headerToColumnIndex.get(expectedLower);
+                value = currentRowMap.get(String.valueOf(index));
+            } else {
+                missingHeaders.add(expectedHeader);
+                Iterator<Integer> it = availableFallbackIndices.iterator();
+                while (it.hasNext()) {
+                    Integer idx = it.next();
+                    Object possibleValue = currentRowMap.get(String.valueOf(idx));
+                    if (possibleValue != null && !String.valueOf(possibleValue).isBlank()) {
+                        value = possibleValue;
+                        it.remove();
+                        break;
+                    }
+                }
+            }
+
+            request.put(internalKey, cleanValue(value));
         }
 
         InvoiceRecordDTO dto = new InvoiceRecordDTO();
         dto.setClaimNumber(String.valueOf(request.getOrDefault("claimNumber", "")));
         dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoiceNumber", "")));
         dto.setRecJson(request);
+
+        if (!missingHeaders.isEmpty()) {
+            dto.setStatus("VALIDATION_FAILED");
+            dto.setStatusDescription("Missing expected headers: " + String.join(", ", missingHeaders));
+        }
+
         return dto;
     }
 
@@ -74,8 +114,10 @@ public class RowProcessorUtil {
             record.setCreatedDate(now);
             record.setCreatedBy(createdBy);
 
-            Map<String, Object> request = record.getRecJson();
             List<String> errors = new ArrayList<>();
+            boolean isValid = true;
+
+            Map<String, Object> request = record.getRecJson();
 
             for (Column col : validationRules) {
                 String key = col.getInternalName();
@@ -84,6 +126,7 @@ public class RowProcessorUtil {
                 if (col.isRequired() && (value == null || value.toString().isBlank())) {
                     errors.add(key + " is required");
                     request.put(key, null);
+                    isValid = false;
                     continue;
                 }
 
@@ -91,8 +134,6 @@ public class RowProcessorUtil {
 
                 String type = col.getType();
                 Map<String, Object> constraints = col.getConstraints();
-
-                boolean valid = true;
                 String errorMsg = "";
 
                 if ("numeric".equalsIgnoreCase(type)) {
@@ -105,8 +146,8 @@ public class RowProcessorUtil {
                                 throw new IllegalArgumentException("must be <= " + constraints.get("max"));
                         }
                     } catch (Exception e) {
-                        valid = false;
                         errorMsg = e.getMessage() != null ? e.getMessage() : "invalid numeric format";
+                        isValid = false;
                     }
                 } else if ("string".equalsIgnoreCase(type)) {
                     String str = value.toString();
@@ -116,21 +157,25 @@ public class RowProcessorUtil {
                         else if (constraints.containsKey("maxLength") && str.length() > (int) constraints.get("maxLength"))
                             errorMsg = "length > " + constraints.get("maxLength");
                     }
-                    valid = errorMsg.isEmpty();
+                    if (!errorMsg.isEmpty()) isValid = false;
                 }
 
-                if (!valid) {
+                if (!errorMsg.isEmpty()) {
                     errors.add(key + ": " + errorMsg);
                     request.put(key, null);
                 }
             }
 
-            if (errors.isEmpty()) {
+            if (errors.isEmpty() && !"VALIDATION_FAILED".equals(record.getStatus())) {
                 record.setStatus("VALID");
                 record.setStatusDescription("Validated successfully");
             } else {
                 record.setStatus("VALIDATION_FAILED");
-                record.setStatusDescription(String.join("; ", errors));
+                if (record.getStatusDescription() == null || record.getStatusDescription().isBlank()) {
+                    record.setStatusDescription(String.join("; ", errors));
+                } else {
+                    record.setStatusDescription(record.getStatusDescription() + "; " + String.join("; ", errors));
+                }
             }
         }
     }
@@ -138,14 +183,10 @@ public class RowProcessorUtil {
     public static boolean isInvoiceAndClaimEmpty(InvoiceRecordDTO dto) {
         String invoice = dto.getInvoiceNumber();
         String claim = dto.getClaimNumber();
-
         return isNullOrEmptyOrLiteralNull(invoice) && isNullOrEmptyOrLiteralNull(claim);
     }
 
     static boolean isNullOrEmptyOrLiteralNull(String val) {
         return val == null || val.trim().isEmpty() || val.trim().equalsIgnoreCase("null");
     }
-
-
-
 }

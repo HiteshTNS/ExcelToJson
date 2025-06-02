@@ -24,7 +24,7 @@ public class ExcelHeaderUtils {
             ObjectMapper mapper = new ObjectMapper();
             VendorHeaderMapping mapping = mapper.readValue(is, VendorHeaderMapping.class);
 
-            Map<String, String> headerMap = new HashMap<>();
+            Map<String, String> headerMap = new LinkedHashMap<>();
             for (Column col : mapping.getColumns()) {
                 headerMap.put(col.getExcelHeader().toLowerCase(), col.getInternalName());
             }
@@ -47,7 +47,7 @@ public class ExcelHeaderUtils {
             ObjectMapper mapper = new ObjectMapper();
             VendorHeaderMapping mapping = mapper.readValue(is, VendorHeaderMapping.class);
 
-            Map<String, Boolean> validationMap = new HashMap<>();
+            Map<String, Boolean> validationMap = new LinkedHashMap<>();
             for (Column col : mapping.getColumns()) {
                 validationMap.put(col.getInternalName(), col.isRequired());
             }
