@@ -1,98 +1,100 @@
 package com.sg.srvc.vendormngt.util.excel;
 
 import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
-import com.sg.srvc.vendormngt.exception.CustomException;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-
-import static com.sg.srvc.vendormngt.util.excel.RowProcessorUtil.isNullOrEmptyOrLiteralNull;
+import java.util.*;
 
 public class CsvProcessor {
 
-    public static List<InvoiceRecordDTO> parseCsv(String filePath, String vendorCode) {
-        List<InvoiceRecordDTO> records = new ArrayList<>();
-        List<String> headers = new ArrayList<>();
-        boolean headerDetected = false;
+    private final String vendorCode;
+    private final Map<String, String> excelToInternalMap;
+    private final List<String> expectedHeaders;
+    private final Map<Integer, String> columnIndexToHeaderMap = new HashMap<>();
+    private boolean headerRowDetected = false;
 
-        // Load vendor-specific mappings
-        Map<String, String> excelToInternalMap = ExcelHeaderUtils.loadHeaderMapping(vendorCode);
-        Map<String, Boolean> requiredFields = ExcelHeaderUtils.loadValidationRules(vendorCode);
+    public CsvProcessor(String vendorCode) {
+        this.vendorCode = vendorCode;
+        this.excelToInternalMap = ExcelHeaderUtils.loadHeaderMapping(vendorCode);
+        this.expectedHeaders = new ArrayList<>(excelToInternalMap.keySet());
+    }
+
+    public List<InvoiceRecordDTO> parseCsv(String filePath) throws IOException {
+        List<InvoiceRecordDTO> records = new ArrayList<>();
+        Set<String> detectedHeaderSet = new HashSet<>();
 
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String line;
+
             while ((line = br.readLine()) != null) {
-                String[] values = line.split(",", -1); // Preserve empty values
-                List<String> rowValues = new ArrayList<>();
-                for (String val : values) {
-                    rowValues.add(val.trim());
+                String[] cells = line.split(",", -1);
+
+                List<String> trimmedCells = new ArrayList<>();
+                for (String c : cells) {
+                    trimmedCells.add(c.trim());
                 }
 
-                if (!headerDetected) {
-                    long match = rowValues.stream()
-                            .filter(val -> !val.isEmpty())
-                            .map(String::toLowerCase)
-                            .filter(excelToInternalMap::containsKey)
-                            .count();
-
-                    if (match >= 3) {
-                        headers.addAll(rowValues);
-                        headerDetected = true;
-
-                        System.out.println("✅ CSV Header Detected:");
-                        headers.forEach(h -> System.out.println("Header: " + h));
-                        continue;
-                    }
-                } else {
-                    // Skip empty row
-                    boolean isEmpty = rowValues.stream().allMatch(String::isEmpty);
-                    if (isEmpty) continue;
-
-                    Map<String, Object> request = new LinkedHashMap<>();
-                    for (int i = 0; i < headers.size(); i++) {
-                        String rawHeader = headers.get(i).trim().toLowerCase();
-                        String internalKey = excelToInternalMap.getOrDefault(rawHeader, rawHeader);
-                        Object value = (i < rowValues.size()) ? rowValues.get(i) : "";
-                        request.put(internalKey, value);
+                if (!headerRowDetected) {
+                    Map<String, Object> tempRowMap = new HashMap<>();
+                    for (int i = 0; i < trimmedCells.size(); i++) {
+                        tempRowMap.put(String.valueOf(i), trimmedCells.get(i).toLowerCase());
                     }
 
-                    // Validate required fields
-                    boolean valid = true;
-                    for (Map.Entry<String, Boolean> entry : requiredFields.entrySet()) {
-                        String key = entry.getKey();
-                        boolean isRequired = entry.getValue();
-                        if (isRequired) {
-                            Object val = request.get(key);
-                            if (val == null || val.toString().isBlank()) {
-                                valid = false;
-                                break;
+                    if (RowProcessorUtil.isHeaderRow(tempRowMap, excelToInternalMap)) {
+                        columnIndexToHeaderMap.clear();
+                        for (int i = 0; i < trimmedCells.size(); i++) {
+                            String header = trimmedCells.get(i).toLowerCase().trim();
+                            if (header.isEmpty()) {
+                                header = expectedHeaders.size() > i ? expectedHeaders.get(i).toLowerCase() : "column_" + i;
+                            }
+                            columnIndexToHeaderMap.put(i, header);
+                            detectedHeaderSet.add(header);
+                        }
+                        headerRowDetected = true;
+
+                        // Validate missing headers at header detection time
+                        List<String> missingHeaders = new ArrayList<>();
+                        for (String expected : expectedHeaders) {
+                            if (!detectedHeaderSet.contains(expected.toLowerCase())) {
+                                missingHeaders.add(expected);
                             }
                         }
-                    }
-                    if (!valid) continue;
 
-                    InvoiceRecordDTO dto = new InvoiceRecordDTO();
-                    dto.setClaimNumber(String.valueOf(request.getOrDefault("claimNumber", "")));
-                    dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoiceNumber", "")));
-                    dto.setRecJson(request);
-                    // Skip row if invoiceNumber and claimNumber are empty/null/"null"
-                    if (isNullOrEmptyOrLiteralNull(dto.getInvoiceNumber()) && isNullOrEmptyOrLiteralNull(dto.getClaimNumber())) {
-                        continue; // skip this row
+                        if (!missingHeaders.isEmpty()) {
+                            System.out.println("Missing Headers: " + String.join(", ", missingHeaders));
+                        } else {
+                            System.out.println("All expected headers are present.");
+                        }
+
+                        System.out.println("Header Row Detected with Mapping: " + columnIndexToHeaderMap);
+                        continue;
+                    } else {
+                        continue;
                     }
-                    records.add(dto);
                 }
+
+                Map<String, Object> currentRowMap = new HashMap<>();
+                for (int i = 0; i < columnIndexToHeaderMap.size(); i++) {
+                    String val = i < trimmedCells.size() ? trimmedCells.get(i) : null;
+                    currentRowMap.put(String.valueOf(i), (val == null || val.isEmpty()) ? null : val);
+                }
+
+                if (ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
+                    continue;
+                }
+
+                InvoiceRecordDTO dto = RowProcessorUtil.mapToInvoiceDTO(expectedHeaders, columnIndexToHeaderMap, currentRowMap, excelToInternalMap);
+
+                // Extra check if header was missing
+                if (!headerRowDetected || columnIndexToHeaderMap.isEmpty()) {
+                    dto.setStatus("VALIDATION_FAILED");
+                    dto.setStatusDescription("Header row not detected or invalid.");
+                }
+
+                records.add(dto);
             }
-        }catch (FileNotFoundException notFound) {
-            throw new CustomException("Error processing CSV file: Can't open the specified file input stream from file: '" + filePath + "'");
-        }
-        catch (IOException e) {
-            throw new RuntimeException("Error reading CSV file: " + e.getMessage(), e);
         }
 
         return records;

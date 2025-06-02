@@ -22,6 +22,12 @@ public class ExcelServiceImpl implements ExcelService {
         String fileName = requestDTO.getFileName();
         String fullPath = baseDir + File.separator + fileName;
 
-        return FileReaderUtil.readAndConvert(fullPath,requestDTO.getCorrelationId(), requestDTO.getVendorCode());
+//        return FileReaderUtil.readAndConvert(fullPath,requestDTO.getCorrelationId(), requestDTO.getVendorCode());
+        try {
+            return FileReaderUtil.readAndConvert(fullPath, requestDTO.getCorrelationId(), requestDTO.getVendorCode());
+        } catch (Exception e) {
+            throw new RuntimeException("Error while reading and converting file: " + e.getMessage(), e);
+        }
+
     }
 }

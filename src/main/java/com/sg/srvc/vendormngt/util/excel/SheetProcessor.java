@@ -38,13 +38,13 @@ public class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler 
                     columnIndexToHeaderMap.put(colIndex, rawHeader);
                 }
                 headerRowDetected = true;
-                System.out.println("✅ Header Row Detected with Mapping: " + columnIndexToHeaderMap);
+                System.out.println("Header Row Detected with Mapping: " + columnIndexToHeaderMap);
             }
         } else {
             if (!ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
                 InvoiceRecordDTO dto = RowProcessorUtil.mapToInvoiceDTO(expectedHeaders, columnIndexToHeaderMap, currentRowMap, excelToInternalMap);
                 if (RowProcessorUtil.isInvoiceAndClaimEmpty(dto)) {
-                    System.out.println("⏩ Skipping row " + rowNum + " because Invoice # and Claim # are empty.");
+                    System.out.println("Skipping row " + rowNum + " because Invoice # and Claim # are empty.");
                     return;
                 }
                 records.add(dto);

@@ -22,10 +22,12 @@ public class FileReaderUtil {
 //    private static final int THREAD_THRESHOLD = 1000;
 //    private static final int BATCH_SIZE = 2500;
 
-    public static InvoiceFileResponseDTO readAndConvert(String filePath,String correlationId,String vendorCode) {
+    public static InvoiceFileResponseDTO readAndConvert(String filePath,String correlationId,String vendorCode) throws Exception {
         List<InvoiceRecordDTO> allRecords;
         if (filePath.toLowerCase().endsWith(".csv")) {
-            allRecords = CsvProcessor.parseCsv(filePath,vendorCode);
+            CsvProcessor csvProcessor = new CsvProcessor(vendorCode);
+            allRecords = csvProcessor.parseCsv(filePath);
+
         } else if (filePath.toLowerCase().endsWith(".xlsx")) {
             allRecords = readXlsx(filePath,vendorCode);
         } else {

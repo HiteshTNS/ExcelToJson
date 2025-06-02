@@ -8,6 +8,8 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 public class RowProcessorUtil {
+//    public static boolean isValid = true;
+//    public static List<String> errors = new ArrayList<>();
 
     public static boolean isHeaderRow(Map<String, Object> row, Map<String, String> excelToInternalMap) {
         long matchCount = row.values().stream()
@@ -124,7 +126,10 @@ public class RowProcessorUtil {
                 Object value = request.get(key);
 
                 if (col.isRequired() && (value == null || value.toString().isBlank())) {
-                    errors.add(key + " is required");
+                    String errorMsg = key + " is required";
+                    if (!errors.contains(errorMsg)) {
+                        errors.add(errorMsg);
+                    }
                     request.put(key, null);
                     isValid = false;
                     continue;
@@ -161,7 +166,9 @@ public class RowProcessorUtil {
                 }
 
                 if (!errorMsg.isEmpty()) {
-                    errors.add(key + ": " + errorMsg);
+                    if (!errors.contains(key + ": " + errorMsg)) {
+                        errors.add(key + ": " + errorMsg);
+                    }
                     request.put(key, null);
                 }
             }
@@ -171,14 +178,22 @@ public class RowProcessorUtil {
                 record.setStatusDescription("Validated successfully");
             } else {
                 record.setStatus("VALIDATION_FAILED");
-                if (record.getStatusDescription() == null || record.getStatusDescription().isBlank()) {
-                    record.setStatusDescription(String.join("; ", errors));
-                } else {
-                    record.setStatusDescription(record.getStatusDescription() + "; " + String.join("; ", errors));
+
+                // Build a set of existing error messages (if any) to avoid duplicates
+                Set<String> uniqueMessages = new LinkedHashSet<>();
+                if (record.getStatusDescription() != null && !record.getStatusDescription().isBlank()) {
+                    String[] existingMessages = record.getStatusDescription().split(";\\s*");
+                    for (String msg : existingMessages) {
+                        uniqueMessages.add(msg);
+                    }
                 }
+                uniqueMessages.addAll(errors);
+
+                record.setStatusDescription(String.join("; ", uniqueMessages));
             }
         }
     }
+
 
     public static boolean isInvoiceAndClaimEmpty(InvoiceRecordDTO dto) {
         String invoice = dto.getInvoiceNumber();
@@ -189,4 +204,15 @@ public class RowProcessorUtil {
     static boolean isNullOrEmptyOrLiteralNull(String val) {
         return val == null || val.trim().isEmpty() || val.trim().equalsIgnoreCase("null");
     }
+
+    public static Map<Integer, String> guessHeadersFromPosition(Map<String, Object> rowData, List<String> expectedHeaders) {
+        Map<Integer, String> guessedMap = new HashMap<>();
+        int index = 0;
+        for (String header : expectedHeaders) {
+            guessedMap.put(index, header);  // Just map by order
+            index++;
+        }
+        return guessedMap;
+    }
+
 }
