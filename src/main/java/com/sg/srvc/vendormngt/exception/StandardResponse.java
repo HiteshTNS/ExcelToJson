@@ -8,7 +8,7 @@ public class StandardResponse<T> {
     private String message;
     private T data;
 
-    // Constructor that accepts 3 parameters: status code, message, and data (of generic type T)
+    // Constructor to initialize the response with status code, message, and data
     public StandardResponse(int statusCode, String message, T data) {
         this.statusCode = statusCode;
         this.message = message;

@@ -11,19 +11,20 @@ import java.io.File;
 @ApplicationScoped
 public class ExcelServiceImpl implements ExcelService {
 
+    private final FileReaderUtil fileReaderUtil;
+
     @ConfigProperty(name = "excel.base.path")
     String baseDir;
 
+    public ExcelServiceImpl(FileReaderUtil fileReaderUtil) {
+        this.fileReaderUtil = fileReaderUtil;
+    }
+
     @Override
-    public InvoiceFileResponseDTO processExcelFile(ExcelRequestDTO requestDTO) {
+    public InvoiceFileResponseDTO processExcelFile(ExcelRequestDTO requestDTO) throws Exception {
         String fileName = requestDTO.getFileName();
         String fullPath = baseDir + File.separator + fileName;
-
-        try {
-            return FileReaderUtil.readAndConvert(fullPath, requestDTO.getCorrelationId(), requestDTO.getVendorCode());
-        } catch (Exception e) {
-            throw new RuntimeException("Error while reading and converting file: " + e.getMessage(), e);
-        }
+        return fileReaderUtil.readAndConvert(fullPath, requestDTO.getCorrelationId(), requestDTO.getVendorCode());
 
     }
 }

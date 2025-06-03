@@ -8,6 +8,8 @@ import com.sg.srvc.vendormngt.dto.InvoiceFileResponseDTO;
 import com.sg.srvc.vendormngt.dto.InvoiceRecordDTO;
 import com.sg.srvc.vendormngt.dto.VendorHeaderMapping;
 import com.sg.srvc.vendormngt.exception.CustomException;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.validation.ValidationException;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.openxml4j.opc.PackageAccess;
@@ -17,6 +19,7 @@ import org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler;
 import org.apache.poi.xssf.usermodel.XSSFComment;
 import org.xml.sax.InputSource;
 import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.XMLReaderFactory;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
@@ -24,38 +27,41 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.zip.ZipException;
 
+@ApplicationScoped
 public class FileReaderUtil {
 
 //    private static final int THREAD_THRESHOLD = 1000;
 //    private static final int BATCH_SIZE = 2500;
 
-    public static InvoiceFileResponseDTO readAndConvert(String filePath, String correlationId, String vendorCode) throws Exception {
-        List<InvoiceRecordDTO> allRecords;
-        if (filePath.toLowerCase().endsWith(".csv")) {
-            CsvProcessor csvProcessor = new CsvProcessor(vendorCode);
-            allRecords = csvProcessor.parseCsv(filePath);
-
-        } else if (filePath.toLowerCase().endsWith(".xlsx")) {
-            allRecords = readXlsx(filePath,vendorCode);
-        } else {
-            throw new CustomException("Unsupported file format. Only .xlsx and .csv allowed.");
-        }
-
-        RowProcessorUtil.validateRecords(allRecords, vendorCode);
+    public InvoiceFileResponseDTO readAndConvert(String filePath, String correlationId, String vendorCode) {
+        List<InvoiceRecordDTO> allRecords = List.of();
         InvoiceFileResponseDTO response = new InvoiceFileResponseDTO();
-        response.setVimInvoiceId(10); // Hardcoded, can be parameterized
-        response.setCorrelationId(correlationId);
-        response.setInvoiceList(allRecords);
-
         try {
-            JsonWriter.save(response,
-                    "C:\\Users\\hitesh.paliwal\\Desktop\\SG Project Files\\Excel File\\Output\\Allow Wheel",
-                    "invoice_data");
-            System.out.println("✅ JSON saved successfully");
-        } catch (IOException e) {
-            throw new CustomException("Failed to save output: " + e.getMessage());
-        }
+                if (filePath.toLowerCase().endsWith(".csv")) {
+                    CsvProcessor csvProcessor = new CsvProcessor(vendorCode);
+                    allRecords = csvProcessor.parseCsv(filePath);
+                } else if (filePath.toLowerCase().endsWith(".xlsx")) {
+                    allRecords = readXlsx(filePath, vendorCode);
+                } else{
+                throw new CustomException("Only .xlsx and .Csv Files are Supported");
+                }
+                RowProcessorUtil.validateRecords(allRecords, vendorCode);
+                response.setVimInvoiceId(10);
+                response.setCorrelationId(correlationId);
+                response.setInvoiceList(allRecords);
 
+                JsonWriter.save(response,
+                        "C:\\Users\\hitesh.paliwal\\Desktop\\SG Project Files\\Excel File\\Output\\Allow Wheel",
+                        "invoice_data");
+        } catch (ValidationException ve) {
+        throw new CustomException("Record validation failed: " + ve.getMessage());
+        } catch (IOException e) {
+        throw new CustomException("Failed to save output file. Please check the file path and try again. Error: " + e.getMessage());
+        } catch (CustomException e) {
+        throw new CustomException("File Not Found at Given Location or Incorrect File name");
+        } catch (Exception e){
+        throw new CustomException("An unexpected error occurred while processing the file: " + e.getMessage());
+        }
         return response;
     }
 
@@ -70,8 +76,8 @@ public class FileReaderUtil {
             SheetProcessor handler = new SheetProcessor(allRecords,vendorCode);
             while (sheets.hasNext()) {
                 try (InputStream sheetStream = sheets.next()) {
-                    XMLReader parser = org.xml.sax.helpers.XMLReaderFactory.createXMLReader();
-                    parser.setContentHandler(new org.apache.poi.xssf.eventusermodel.XSSFSheetXMLHandler(
+                    XMLReader parser = XMLReaderFactory.createXMLReader();
+                    parser.setContentHandler(new XSSFSheetXMLHandler(
                             reader.getStylesTable(), null, reader.getSharedStringsTable(), handler, formatter, false));
                     parser.parse(new InputSource(sheetStream));
                 }
@@ -86,68 +92,67 @@ public class FileReaderUtil {
         return allRecords;
     }
 
-
 //-----------------------------
 //sheet processor file
 //-----------------------------
-public static class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler {
+    public static class SheetProcessor implements XSSFSheetXMLHandler.SheetContentsHandler {
 
-    private final List<InvoiceRecordDTO> records;
-    private final String vendorCode;
-    private final Map<String, String> excelToInternalMap;
-    private final List<String> expectedHeaders;  // expected header sequence
-    private Map<Integer, String> columnIndexToHeaderMap = new HashMap<>();
-    private Map<String, Object> currentRowMap;
-    private boolean headerRowDetected = false;
+        private final List<InvoiceRecordDTO> records;
+        private final String vendorCode;
+        private final Map<String, String> excelToInternalMap;
+        private final List<String> expectedHeaders;  // expected header sequence
+        private Map<Integer, String> columnIndexToHeaderMap = new HashMap<>();
+        private Map<String, Object> currentRowMap;
+        private boolean headerRowDetected = false;
 
-    public SheetProcessor(List<InvoiceRecordDTO> records, String vendorCode) {
-        this.records = records;
-        this.vendorCode = vendorCode;
-        this.excelToInternalMap = ExcelHeaderUtils.loadHeaderMapping(vendorCode);
-        this.expectedHeaders = new ArrayList<>(excelToInternalMap.keySet());
-    }
+        public SheetProcessor(List<InvoiceRecordDTO> records, String vendorCode) {
+            this.records = records;
+            this.vendorCode = vendorCode;
+            this.excelToInternalMap = ExcelHeaderUtils.loadHeaderMapping(vendorCode);
+            this.expectedHeaders = new ArrayList<>(excelToInternalMap.keySet());
+        }
 
-    @Override
-    public void startRow(int rowNum) {
-        currentRowMap = new HashMap<>();
-    }
+        @Override
+        public void startRow(int rowNum) {
+            currentRowMap = new HashMap<>();
+        }
 
-    @Override
-    public void endRow(int rowNum) {
-        if (!headerRowDetected) {
-            if (RowProcessorUtil.isHeaderRow(currentRowMap, excelToInternalMap)) {
-                System.out.println("currentRowMap" + currentRowMap);
-                for (Map.Entry<String, Object> entry : currentRowMap.entrySet()) {
-                    int colIndex = Integer.parseInt(entry.getKey());
-                    String rawHeader = entry.getValue().toString().trim().toLowerCase();
-                    columnIndexToHeaderMap.put(colIndex, rawHeader);
-                }
-                headerRowDetected = true;
+        @Override
+        public void endRow(int rowNum) {
+            if (!headerRowDetected) {
+                if (RowProcessorUtil.isHeaderRow(currentRowMap, excelToInternalMap)) {
+//                    System.out.println("currentRowMap" + currentRowMap);
+                    for (Map.Entry<String, Object> entry : currentRowMap.entrySet()) {
+                        int colIndex = Integer.parseInt(entry.getKey());
+                        String rawHeader = entry.getValue().toString().trim().toLowerCase();
+                        columnIndexToHeaderMap.put(colIndex, rawHeader);
+                    }
+                    headerRowDetected = true;
 //                System.out.println("Header Row Detected with Mapping: " + columnIndexToHeaderMap);
-            }
-        } else {
-            if (!ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
-                InvoiceRecordDTO dto = RowProcessorUtil.mapToInvoiceDTO(expectedHeaders, columnIndexToHeaderMap, currentRowMap, excelToInternalMap,null);
-                if (RowProcessorUtil.isInvoiceAndClaimEmpty(dto)) {
-                    System.out.println("Skipping row " + rowNum + " because Invoice # and Claim # are empty.");
-                    return;
                 }
-                records.add(dto);
+            } else {
+                if (!ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
+                    InvoiceRecordDTO dto = RowProcessorUtil.mapToInvoiceDTO(expectedHeaders, columnIndexToHeaderMap, currentRowMap, excelToInternalMap,null);
+                    if (RowProcessorUtil.isInvoiceAndClaimEmpty(dto)) {
+                        System.out.println("Skipping row " + rowNum + " because Invoice # and Claim # are empty.");
+                        return;
+                    }
+                    records.add(dto);
+                }
             }
         }
-    }
 
-    @Override
-    public void cell(String cellReference, String formattedValue, XSSFComment comment) {
-        int colIndex = ExcelHeaderUtils.getColumnIndex(cellReference);
-        currentRowMap.put(String.valueOf(colIndex), formattedValue != null ? formattedValue.trim() : "");
-    }
+        @Override
+        public void cell(String cellReference, String formattedValue, XSSFComment comment) {
+            int colIndex = ExcelHeaderUtils.getColumnIndex(cellReference);
+            currentRowMap.put(String.valueOf(colIndex), formattedValue != null ? formattedValue.trim() : "");
+        }
 
-    @Override
-    public void headerFooter(String text, boolean isHeader, String tagName) {
-        // No-op
+        @Override
+        public void headerFooter(String text, boolean isHeader, String tagName) {
+            // No-op
+        }
     }
-}
 }
 
 //----------------------------------
@@ -226,6 +231,8 @@ class CsvProcessor {
                     }
                 }
             }
+        }catch (Exception e){
+            throw new CustomException("Error While Reading the .csv File");
         }
 
         return records;
@@ -237,8 +244,6 @@ class CsvProcessor {
 //ExcelHeaderUtils
 //---------------------------
 class ExcelHeaderUtils {
-
-    public static final List<String> HEADER_KEYWORDS = Arrays.asList("Company Name","invoice", "contract", "claim", "insured", "date", "vin", "amount");
 
     public static Map<String, String> loadHeaderMapping(String vendorCode) {
         InputStream is = ExcelHeaderUtils.class.getClassLoader().getResourceAsStream("configs/" + vendorCode + ".json");
@@ -397,8 +402,7 @@ class RowProcessorUtil {
                                                    Map<Integer, String> columnIndexToHeaderMap,
                                                    Map<String, Object> currentRowMap,
                                                    Map<String, String> excelToInternalMap,
-                                                    List<String> missingHeadersOrNull) {
-        System.out.println("columnIndexToHeaderMap : "+columnIndexToHeaderMap);
+                                                   List<String> missingHeadersOrNull) {
 
         Map<String, Object> request = new LinkedHashMap<>();
         List<String> missingHeaders = new ArrayList<>();

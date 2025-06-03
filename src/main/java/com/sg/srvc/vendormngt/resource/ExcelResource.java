@@ -18,7 +18,7 @@ public class ExcelResource {
 
     @POST
 //    @Path("/convert")
-    public InvoiceFileResponseDTO convertExcel(@Valid ExcelRequestDTO requestDTO) {
+    public InvoiceFileResponseDTO convertExcel(@Valid ExcelRequestDTO requestDTO) throws Exception {
         System.out.println("API HITS");
         return excelService.processExcelFile(requestDTO);
     }
