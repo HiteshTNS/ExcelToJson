@@ -1,13 +1,9 @@
 package com.sg.srvc.vendormngt.dto;
 
 import jakarta.validation.constraints.NotBlank;
-import lombok.*;
+import lombok.Data;
 
-@Getter
-@Setter
-@AllArgsConstructor
-@NoArgsConstructor
-@ToString
+@Data
 public class ExcelRequestDTO {
 
     @NotBlank(message = "File Name must not be blank")

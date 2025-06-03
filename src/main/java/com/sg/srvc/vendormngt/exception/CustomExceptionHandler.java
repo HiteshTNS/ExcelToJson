@@ -1,6 +1,5 @@
 package com.sg.srvc.vendormngt.exception;
 
-import com.sg.srvc.vendormngt.response.StandardResponse;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;

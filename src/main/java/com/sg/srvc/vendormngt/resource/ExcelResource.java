@@ -24,8 +24,8 @@ public class ExcelResource {
     }
 
     @GET
-    public String greet(){
-        System.out.println("GREET HITS");
+    public String healthCheck(){
+//        System.out.println("GREET HITS");
         return "Hello from quarkus";
     }
 }

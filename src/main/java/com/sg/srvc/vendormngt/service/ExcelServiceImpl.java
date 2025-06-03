@@ -16,13 +16,9 @@ public class ExcelServiceImpl implements ExcelService {
 
     @Override
     public InvoiceFileResponseDTO processExcelFile(ExcelRequestDTO requestDTO) {
-//        System.out.println("File Name : " + requestDTO.getFileName() );
-//        System.out.println("Corelation ID  : " + requestDTO.getCorrelationId() );
-//        System.out.println("Vendor Code : " + requestDTO.getVendorCode() );
         String fileName = requestDTO.getFileName();
         String fullPath = baseDir + File.separator + fileName;
 
-//        return FileReaderUtil.readAndConvert(fullPath,requestDTO.getCorrelationId(), requestDTO.getVendorCode());
         try {
             return FileReaderUtil.readAndConvert(fullPath, requestDTO.getCorrelationId(), requestDTO.getVendorCode());
         } catch (Exception e) {
