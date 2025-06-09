@@ -1,0 +1,113 @@
+{
+  "vendorCode": "VID003",
+  "columns": [
+    {
+      "excelHeader": "Company Name",
+      "internalName": "companyName",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Invoice #",
+      "internalName": "invoiceNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Contract #",
+      "internalName": "contractNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Claim #",
+      "internalName": "claimNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "excelHeader": "Insured",
+      "internalName": "insured",
+      "type": "string",
+      "required": false,
+      "constraints": {
+        "maxLength": 50
+      }
+    },
+    {
+      "excelHeader": "Date Of Inspection",
+      "internalName": "dateOfInspection",
+      "type": "date",
+      "required": true,
+      "constraints": {
+        "format": "yyyy-MM-dd"
+      }
+    },
+    {
+      "excelHeader": "VIN",
+      "internalName": "vin",
+      "type": "string",
+      "required": false,
+      "constraints": {
+        "maxLength": 17
+      }
+    },
+    {
+      "excelHeader": "Miles",
+      "internalName": "miles",
+      "type": "numeric",
+      "required": false,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "excelHeader": "Insp Fee",
+      "internalName": "baseInspectionFee",
+      "type": "numeric",
+      "required": true,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "excelHeader": "Fee",
+      "internalName": "travelfee",
+      "type": "numeric",
+      "required": false,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "excelHeader": "Charges",
+      "internalName": "miscCharges",
+      "type": "numeric",
+      "required": false,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "excelHeader": "Charges",
+      "internalName": "totalCharges",
+      "type": "numeric",
+      "required": true,
+      "constraints": {
+        "min": 0.0
+      }
+    }
+  ]
+}

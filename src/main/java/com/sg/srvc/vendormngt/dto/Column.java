@@ -6,6 +6,7 @@ import java.util.Map;
 
 @Data
 public class Column {
+    private Integer colIndex;
     private String excelHeader;
     private String internalName;
     private String type;  // "string", "date", "numeric"

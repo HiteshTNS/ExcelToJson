@@ -131,9 +131,13 @@ public class FileReaderUtil {
                     for (Map.Entry<String, Object> entry : currentRowMap.entrySet()) {
                         int colIndex = Integer.parseInt(entry.getKey());
                         String rawHeader = entry.getValue().toString().trim().toLowerCase();
-                        columnIndexToHeaderMap.put(colIndex, rawHeader);
+                        String headerWithIndex = rawHeader + "_" + colIndex;
+                        columnIndexToHeaderMap.put(colIndex, headerWithIndex);
+//                        System.out.println("Detected header: colIndex=" + colIndex + ", header=" + headerWithIndex);
+// ✅ Use full key
                     }
                     headerRowDetected = true;
+                    System.out.println("Header Row detected");
 //                System.out.println("Header Row Detected with Mapping: " + columnIndexToHeaderMap);
                 }
             } else {
@@ -181,7 +185,10 @@ class CsvProcessor {
     }
 
     public List<InvoiceRecordDTO> parseCsv(String filePath) throws IOException {
+        List<InvoiceRecordDTO> records = new ArrayList<>();
         List<String> missingHeaders = new ArrayList<>();
+        Map<Integer, String> columnIndexToHeaderMap = new HashMap<>();
+        boolean headerRowDetected = false;
 
         try (BufferedReader br = new BufferedReader(new FileReader(filePath))) {
             String line;
@@ -189,60 +196,69 @@ class CsvProcessor {
 
             while ((line = br.readLine()) != null) {
                 rowNum++;
-                currentRowMap = new HashMap<>();
-                String[] cells = line.split(",", -1);
+                Map<String, Object> currentRowMap = new HashMap<>();
+                String[] cells = line.split(",", -1);  // split by comma, include empty strings
 
+                // Fill currentRowMap
                 for (int i = 0; i < cells.length; i++) {
                     currentRowMap.put(String.valueOf(i), cells[i].trim());
                 }
 
+                // Header detection
                 if (!headerRowDetected) {
                     if (RowProcessorUtil.isHeaderRow(currentRowMap, excelToInternalMap)) {
-                        System.out.println("currentRowMap: " + currentRowMap);
+                        System.out.println("currentRowMap (header row): " + currentRowMap);
                         for (Map.Entry<String, Object> entry : currentRowMap.entrySet()) {
                             int colIndex = Integer.parseInt(entry.getKey());
                             String rawHeader = entry.getValue().toString().trim().toLowerCase();
+
                             if (rawHeader.isEmpty() && colIndex < expectedHeaders.size()) {
-                                rawHeader = expectedHeaders.get(colIndex).toLowerCase(); // ← fallback
-                                missingHeaders.add(rawHeader);
+                                rawHeader = expectedHeaders.get(colIndex).toLowerCase();
+                                String cleanExpectedHeader = rawHeader.contains("_")
+                                        ? rawHeader.substring(0, rawHeader.lastIndexOf("_"))
+                                        : rawHeader;
+                                missingHeaders.add(cleanExpectedHeader);
                             }
 
-                            columnIndexToHeaderMap.put(colIndex, rawHeader);
+                            String headerWithIndex = rawHeader + "_" + colIndex;
+                            columnIndexToHeaderMap.put(colIndex, headerWithIndex);
+                            System.out.println("Detected header: colIndex=" + colIndex + ", header=" + headerWithIndex);
                         }
+
                         headerRowDetected = true;
-                        InvoiceRecordDTO dto = new InvoiceRecordDTO();
+
                         if (!missingHeaders.isEmpty()) {
                             System.out.println("Missing expected headers (defaulted): " + String.join(", ", missingHeaders));
-                            dto.setStatus("VALIDATION_FAILED");
-                            dto.setStatusDescription("Missing expected headers: " + String.join(", ", missingHeaders));
                         }
-//                        System.out.println("Header Row Detected with Mapping: " + columnIndexToHeaderMap);
                     }
-                } else {
-                    if (!ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
-                        InvoiceRecordDTO dto = RowProcessorUtil.mapToInvoiceDTO(
-                                expectedHeaders,
-                                columnIndexToHeaderMap,
-                                currentRowMap,
-                                excelToInternalMap,
-                                missingHeaders
-                        );
+                    continue;
+                }
 
-                        if (RowProcessorUtil.isInvoiceAndClaimEmpty(dto)) {
-                            System.out.println("Skipping row " + rowNum + " because Invoice # and Claim # are empty.");
-                            continue;
-                        }
+                // Process actual rows
+                if (!ExcelHeaderUtils.isEmptyRow(currentRowMap)) {
+                    InvoiceRecordDTO dto = RowProcessorUtil.mapToInvoiceDTO(
+                            expectedHeaders,
+                            columnIndexToHeaderMap,
+                            currentRowMap,
+                            excelToInternalMap,
+                            new ArrayList<>(missingHeaders)
+                    );
 
-                        records.add(dto);
+                    if (RowProcessorUtil.isInvoiceAndClaimEmpty(dto)) {
+                        System.out.println("Skipping row " + rowNum + " because Invoice # and Claim # are empty.");
+                        continue;
                     }
+
+                    records.add(dto);
                 }
             }
         } catch (Exception e) {
-            throw new FileNotFoundException("Error While Reading the .csv File :" +e.getMessage());
+            throw new FileNotFoundException("Error While Reading the .csv File: " + e.getMessage());
         }
 
         return records;
     }
+
 }
 
 
@@ -264,7 +280,7 @@ class ExcelHeaderUtils {
 
             Map<String, String> headerMap = new LinkedHashMap<>();
             for (Column col : mapping.getColumns()) {
-                headerMap.put(col.getExcelHeader().toLowerCase(), col.getInternalName());
+                headerMap.put(col.getExcelHeader().toLowerCase() + "_" + col.getColIndex(), col.getInternalName());
             }
             return headerMap;
         } catch (IOException e) {
@@ -369,12 +385,22 @@ class RowProcessorUtil {
 
     //    Function to Detect the Header Row
     public static boolean isHeaderRow(Map<String, Object> row, Map<String, String> excelToInternalMap) {
-        long matchCount = row.values().stream()
-                .filter(val -> val instanceof String)
-                .map(val -> ((String) val).toLowerCase())
-                .filter(excelToInternalMap::containsKey)
-                .count();
-        return matchCount >= 3;
+        int matchCount = 0;
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            try {
+                int colIndex = Integer.parseInt(entry.getKey());
+                String cellValue = entry.getValue().toString().trim().toLowerCase();
+                String headerKey = cellValue + "_" + colIndex;
+                if (excelToInternalMap.containsKey(headerKey)) {
+                    matchCount++;
+                }
+            } catch (Exception e) {
+                // skip malformed rows
+            }
+        }
+
+        // Consider header valid if at least 70% match (you can adjust)
+        return matchCount >= Math.ceil(excelToInternalMap.size() * 0.7);
     }
 
     //Function to clean the cell value(Date Formatting, Removes trailing space etc..,)
@@ -410,50 +436,64 @@ class RowProcessorUtil {
                                                    Map<String, Object> currentRowMap,
                                                    Map<String, String> excelToInternalMap,
                                                    List<String> missingHeadersOrNull) {
-
+        System.out.println("expectedHeaders : " + expectedHeaders);
+        System.out.println("columnIndexToHeaderMap : " + columnIndexToHeaderMap);
+        System.out.println("currentRowMap : " + currentRowMap );
+        System.out.println("excelToInternalMap : "+excelToInternalMap );
         Map<String, Object> request = new LinkedHashMap<>();
         List<String> missingHeaders = new ArrayList<>();
-        missingHeaders.addAll(CollectionUtils.isNotEmpty(missingHeadersOrNull) ? missingHeadersOrNull : new ArrayList<>());
-        Map<String, Integer> headerToColumnIndex = new HashMap<>();
-        System.out.println("columnIndexToHeaderMap : " + columnIndexToHeaderMap);
-        for (Map.Entry<Integer, String> entry : columnIndexToHeaderMap.entrySet()) {
-            if (entry.getValue() != null) {
-                headerToColumnIndex.put(entry.getValue().trim().toLowerCase(), entry.getKey());
-            }
+        if (CollectionUtils.isNotEmpty(missingHeadersOrNull)) {
+            missingHeaders.addAll(missingHeadersOrNull);
         }
 
+        // Step 1: Reverse mapping to support lookup
         Set<Integer> availableFallbackIndices = new LinkedHashSet<>();
         for (int i = 0; i < currentRowMap.size(); i++) {
             if (!columnIndexToHeaderMap.containsKey(i)) {
-                availableFallbackIndices.add(i);
+                availableFallbackIndices.add(i);  // Columns without headers
             }
         }
 
+        // Step 2: Process expected headers
         for (String expectedHeader : expectedHeaders) {
-            String expectedLower = expectedHeader.toLowerCase();
-            String internalKey = excelToInternalMap.getOrDefault(expectedLower, expectedLower);
+            String expectedLower = expectedHeader.toLowerCase();               // e.g., "contract #"
+            String internalKey = excelToInternalMap.getOrDefault(expectedLower, expectedLower); // contractNumber
             Object value = null;
+            boolean matched = false;
 
-            if (headerToColumnIndex.containsKey(expectedLower)) {
-                Integer index = headerToColumnIndex.get(expectedLower);
-                value = currentRowMap.get(String.valueOf(index));
-            } else {
-                missingHeaders.add(expectedHeader);
+            // Check if header exists in colIndex map
+            for (Map.Entry<Integer, String> entry : columnIndexToHeaderMap.entrySet()) {
+                String headerWithIndex = entry.getValue();                     // e.g., "contract #_2"
+                if (headerWithIndex != null && headerWithIndex.startsWith(expectedLower)) {
+                    int colIdx = entry.getKey();
+                    value = currentRowMap.get(String.valueOf(colIdx));
+                    matched = true;
+                    break;
+                }
+            }
+
+            // If header not found, fallback to unused columns
+            if (!matched) {
                 Iterator<Integer> it = availableFallbackIndices.iterator();
                 while (it.hasNext()) {
                     Integer idx = it.next();
                     Object possibleValue = currentRowMap.get(String.valueOf(idx));
                     if (possibleValue != null && !String.valueOf(possibleValue).isBlank()) {
                         value = possibleValue;
-                        it.remove();
+                        it.remove();  // Don't reuse same fallback
                         break;
                     }
                 }
+                String cleanExpectedHeader = expectedHeader.contains("_")
+                        ? expectedHeader.substring(0, expectedHeader.lastIndexOf("_"))
+                        : expectedHeader;
+                missingHeaders.add(cleanExpectedHeader);
             }
 
             request.put(internalKey, cleanValue(value));
         }
 
+        // Final object
         InvoiceRecordDTO dto = new InvoiceRecordDTO();
         dto.setClaimNumber(String.valueOf(request.getOrDefault("claimNumber", "")));
         dto.setInvoiceNumber(String.valueOf(request.getOrDefault("invoiceNumber", "")));
@@ -466,6 +506,8 @@ class RowProcessorUtil {
 
         return dto;
     }
+
+
 
     public static void validateRecords(List<InvoiceRecordDTO> records, String vendorCode) {
         LocalDateTime now = LocalDateTime.now();
