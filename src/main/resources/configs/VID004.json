@@ -1,0 +1,145 @@
+{
+  "vendorCode": "VID003",
+  "columns": [
+    {
+      "colIndex": 0,
+      "excelHeader": "Company Name",
+      "internalName": "companyName",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "colIndex": 1,
+      "excelHeader": "Invoice #",
+      "internalName": "invoiceNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "colIndex": 2,
+      "excelHeader": "Contract #",
+      "internalName": "contractNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "colIndex": 3,
+      "excelHeader": "Claim #",
+      "internalName": "claimNumber",
+      "type": "string",
+      "required": true,
+      "constraints": {
+        "maxLength": 30
+      }
+    },
+    {
+      "colIndex": 4,
+      "excelHeader": "Insured",
+      "internalName": "insured",
+      "type": "string",
+      "required": false,
+      "constraints": {
+        "maxLength": 50
+      }
+    },
+    {
+      "colIndex": 5,
+      "excelHeader": "Date Of Inspection",
+      "internalName": "dateOfInspection",
+      "type": "date",
+      "required": true,
+      "constraints": {
+        "format": "yyyy-MM-dd"
+      }
+    },
+    {
+      "colIndex": 6,
+      "excelHeader": "VIN",
+      "internalName": "vin",
+      "type": "string",
+      "required": false,
+      "constraints": {
+        "maxLength": 17
+      }
+    },
+    {
+      "colIndex": 7,
+      "excelHeader": "Miles",
+      "internalName": "miles",
+      "type": "numeric",
+      "required": false,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "colIndex": 8,
+      "excelHeader": "Insp Fee",
+      "internalName": "baseInspectionFee",
+      "type": "numeric",
+      "required": true,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "colIndex": 9,
+      "excelHeader": "Fee",
+      "internalName": "travelfee",
+      "type": "numeric",
+      "required": false,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "colIndex": 10,
+      "excelHeader": "Charges",
+      "internalName": "miscCharges",
+      "type": "numeric",
+      "required": false,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "colIndex": 11,
+      "excelHeader": "Charges",
+      "internalName": "totalCharges",
+      "type": "numeric",
+      "required": true,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "colIndex": 12,
+      "excelHeader": "Charges",
+      "internalName": "extraCharges",
+      "type": "numeric",
+      "required": true,
+      "constraints": {
+        "min": 0.0
+      }
+    },
+    {
+      "colIndex": 13,
+      "excelHeader": "0-30 days",
+      "internalName": "0-30Days",
+      "type": "numeric",
+      "required": true,
+      "constraints": {
+        "min": 0.0
+      }
+    }
+  ]
+}

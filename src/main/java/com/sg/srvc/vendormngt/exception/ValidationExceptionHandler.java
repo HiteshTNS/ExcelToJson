@@ -1,6 +1,5 @@
 package com.sg.srvc.vendormngt.exception;
 
-import com.sg.srvc.vendormngt.response.StandardResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.ws.rs.core.Response;
@@ -15,15 +14,17 @@ public class ValidationExceptionHandler implements ExceptionMapper<ConstraintVio
 
     @Override
     public Response toResponse(ConstraintViolationException exception) {
+        // Collect all validation error messages
         List<String> errors = exception.getConstraintViolations()
                 .stream()
                 .map(ConstraintViolation::getMessage)
                 .collect(Collectors.toList());
 
+        // Create StandardResponse with the status code, message, and the list of errors
         StandardResponse<List<String>> errorResponse = new StandardResponse<>(
-                400,
-                "Validation Error",
-                errors
+                400,  // HTTP status code for Bad Request
+                "Validation Error",  // Message
+                errors  // List of validation error messages as data
         );
 
         return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();

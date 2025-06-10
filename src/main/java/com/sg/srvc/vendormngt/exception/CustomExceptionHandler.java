@@ -1,22 +1,22 @@
 package com.sg.srvc.vendormngt.exception;
 
-import com.sg.srvc.vendormngt.response.StandardResponse;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-
-import java.util.List;
 
 @Provider
 public class CustomExceptionHandler implements ExceptionMapper<CustomException> {
 
     @Override
     public Response toResponse(CustomException exception) {
-        StandardResponse<List<String>> errorResponse = new StandardResponse<>(
-                400,
+        // Create StandardResponse with status code, message, and exception message as data
+        StandardResponse<String> errorResponse = new StandardResponse<>(
+                400,  // HTTP status code for Bad Request
                 "Error",
-                List.of(exception.getMessage())
+                exception.getMessage()  // Set exception message as data
         );
+
+        // Return the response with a structured message
         return Response.status(Response.Status.BAD_REQUEST).entity(errorResponse).build();
     }
 }

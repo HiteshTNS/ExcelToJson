@@ -1,7 +1,7 @@
 package com.sg.srvc.vendormngt.resource;
 
 import com.sg.srvc.vendormngt.dto.ExcelRequestDTO;
-import com.sg.srvc.vendormngt.dto.ExcelResponseDTO;
+import com.sg.srvc.vendormngt.dto.InvoiceFileResponseDTO;
 import com.sg.srvc.vendormngt.service.ExcelService;
 import jakarta.inject.Inject;
 import jakarta.validation.Valid;
@@ -18,14 +18,14 @@ public class ExcelResource {
 
     @POST
 //    @Path("/convert")
-    public ExcelResponseDTO convertExcel(@Valid ExcelRequestDTO requestDTO) {
+    public InvoiceFileResponseDTO convertExcel(@Valid ExcelRequestDTO requestDTO) throws Exception {
         System.out.println("API HITS");
         return excelService.processExcelFile(requestDTO);
     }
 
     @GET
-    public String greet(){
-        System.out.println("GREET HITS");
+    public String healthCheck(){
+//        System.out.println("GREET HITS");
         return "Hello from quarkus";
     }
 }
